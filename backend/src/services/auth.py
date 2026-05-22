@@ -18,10 +18,14 @@ def verify_password(password: str, password_hash: str) -> bool:
     """Check that password's hash is the same as password_hash"""
     return bcrypt.checkpw(password.encode(), password_hash.encode())
 
-def create_token(user_id: int) -> str:
+def get_jwt_secret():
     secret = os.getenv("JWT_SECRET")
     if secret is None:
         raise RuntimeError("JWT_SECRET environment variable is not set")
+    return secret
+
+def create_token(user_id: int) -> str:
+    secret = get_jwt_secret()
     payload = {
         "id": user_id,
         "exp": datetime.now() + timedelta(hours=24)
@@ -30,9 +34,7 @@ def create_token(user_id: int) -> str:
 
 def get_current_user(token = Depends(security), db: Session = Depends(get_db)) -> User:
     try:
-        secret = os.getenv("JWT_SECRET")
-        if secret is None:
-            raise RuntimeError("JWT_SECRET environment variable is not set")
+        secret = get_jwt_secret()
         payload = jwt.decode(token.credentials, secret, algorithms=["HS256"])
         user_id = payload.get("id")
         if user_id is None:
