@@ -3,7 +3,7 @@ from src.routers import auth
 from src.database import engine, Base
 
 # Make sure the models definitely get imported before creating db
-from src.models import user
+from src.models import user, group
 
 app = FastAPI()
 

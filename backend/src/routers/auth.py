@@ -1,5 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from jose import jwt
+from datetime import datetime, timedelta
+import os
 
 from src.database import get_db
 from src.models.user import User
@@ -9,7 +12,7 @@ from src.services.auth import hash_password, verify_password
 router = APIRouter()
 
 @router.post("/register", response_model=UserResponse)
-def regster(user: UserRegister, db: Session = Depends(get_db)):
+def register(user: UserRegister, db: Session = Depends(get_db)):
     db_user = db.query(User).filter(User.email == user.email).first()
     
     # Check that username and email aren't taken
@@ -31,8 +34,15 @@ def regster(user: UserRegister, db: Session = Depends(get_db)):
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
-
     return db_user
+
+def create_token(user_id: int) -> str:
+    payload = {
+        "id": user_id,
+        "exp": datetime.now() + timedelta(hours=24)
+    }
+    print(os.getenv("JWT_SECRET"))
+    return jwt.encode(payload, os.getenv("JWT_SECRET"), algorithm="HS256") #type: ignore
 
 @router.post("/login", response_model = TokenResponse)
 def login(user: UserLogin, db: Session = Depends(get_db)):
@@ -42,4 +52,4 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
         # Never tell the user if any information provided is correct
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid login details")
     
-    return TokenResponse(access_token="JWT", token_type="bearer")
+    return TokenResponse(access_token=create_token(db_user.id), token_type="bearer") #type: ignore
