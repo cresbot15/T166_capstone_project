@@ -7,7 +7,7 @@ import os
 from src.database import get_db
 from src.models.user import User
 from src.schemas.user import UserRegister, UserLogin, UserResponse, TokenResponse
-from src.services.auth import hash_password, verify_password
+from src.services.auth import hash_password, verify_password, create_token
 
 router = APIRouter()
 
@@ -35,14 +35,6 @@ def register(user: UserRegister, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(db_user)
     return db_user
-
-def create_token(user_id: int) -> str:
-    payload = {
-        "id": user_id,
-        "exp": datetime.now() + timedelta(hours=24)
-    }
-    print(os.getenv("JWT_SECRET"))
-    return jwt.encode(payload, os.getenv("JWT_SECRET"), algorithm="HS256") #type: ignore
 
 @router.post("/login", response_model = TokenResponse)
 def login(user: UserLogin, db: Session = Depends(get_db)):

@@ -10,12 +10,11 @@ class UserLogin(BaseModel):
     password:str
 
 class UserResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     id: int
     username: str
     email: EmailStr
-
-    class Config:
-        from_attributes = True
 
 class TokenResponse(BaseModel):
     access_token: str
