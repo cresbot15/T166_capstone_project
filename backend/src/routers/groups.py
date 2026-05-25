@@ -10,20 +10,16 @@ router = APIRouter()
 
 @router.post("/join", response_model=GroupJoinResponse)
 def join_group(body: GroupJoin, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    # Check user isn't already in a group
     if current_user.group_id is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Already in a group")
 
-    # Find the group by preference code
     group = db.query(Group).filter(Group.preference_code == body.preference_code).first()
     if not group:
         return GroupJoinResponse(valid=False, reason="Invalid preference code")
 
-    # Check group isn't full
     if len(group.members) >= 5:
         return GroupJoinResponse(valid=False, reason="Group is full")
 
-    # Add user to group
     current_user.group_id = group.id
     db.commit()
     db.refresh(group)
@@ -32,45 +28,66 @@ def join_group(body: GroupJoin, db: Session = Depends(get_db), current_user: Use
 
 @router.post("/create", response_model=GroupResponse)
 def create_group(body: GroupCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    # Check user isn't already in a group
     if current_user.group_id is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Already in a group")
 
-    # Check preference code isn't already in use if one was provided
     if body.preference_code:
         existing = db.query(Group).filter(Group.preference_code == body.preference_code).first()
         if existing:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Preference code already in use")
 
-    # Create the group
     group = Group(preference_code=body.preference_code)
     db.add(group)
     db.commit()
     db.refresh(group)
 
-    # Add the creator to the group
     current_user.group_id = group.id
     db.commit()
     db.refresh(group)
 
     return GroupResponse.model_validate(group)
 
-@router.get("/groups", response_model=list[GroupResponse])
+@router.get("/", response_model=list[GroupResponse])
 def get_groups(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     groups = db.query(Group).all()
-    return [GroupResponse.model_validate(group) for group in groups]
+    return [GroupResponse.model_validate(g) for g in groups]
 
-@router.delete("/leave_group", response_model=None, status_code=status.HTTP_204_NO_CONTENT)
+@router.get("/my-group", response_model=GroupResponse)
+def get_my_group(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if current_user.group_id is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not in a group")
+
+    group = db.query(Group).filter(Group.id == current_user.group_id).first()
+    return GroupResponse.model_validate(group)
+
+@router.get("/recommended-times", response_model=list[str])
+def get_recommended_times(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if current_user.group_id is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not in a group")
+
+    group = db.query(Group).filter(Group.id == current_user.group_id).first()
+    other_members = [m for m in group.members if m.id != current_user.id]
+
+    if not other_members:
+        return []
+
+    sets = [set(m.time_preferences or []) for m in other_members]
+    result = sets[0]
+    for s in sets[1:]:
+        result = result & s
+
+    return sorted(result)
+
+@router.delete("/leave", response_model=None, status_code=status.HTTP_204_NO_CONTENT)
 def leave_group(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if current_user.group_id is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="You are not in a group")
-    
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not in a group")
+
     group = db.query(Group).filter(Group.id == current_user.group_id).first()
-    
-    current_user.group_id = None #type: ignore
+
+    current_user.group_id = None  # type: ignore
     db.commit()
 
-    # If group is empty, delete it
-    if len(group.members) == 0: #type: ignore
+    if group and len(group.members) == 0:
         db.delete(group)
         db.commit()
