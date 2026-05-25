@@ -3,8 +3,8 @@ from sqlalchemy.orm import Session
 
 from src.database import get_db
 from src.models.user import User
-from src.schemas.user import UserRegister, UserLogin, UserUpdate, UserResponse, TokenResponse
-from src.services.auth import hash_password, verify_password, create_token, get_current_user
+from src.schemas.user import UserRegister, UserLogin, UserResponse, TokenResponse
+from src.services.auth import hash_password, verify_password, create_token
 
 router = APIRouter()
 
@@ -39,15 +39,3 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid login details")
 
     return TokenResponse(access_token=create_token(db_user.id), token_type="bearer")  # type: ignore
-
-@router.get("/me", response_model=UserResponse)
-def get_me(current_user: User = Depends(get_current_user)):
-    return current_user
-
-@router.put("/me", response_model=UserResponse)
-def update_me(update: UserUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    for field, value in update.model_dump(exclude_none=True).items():
-        setattr(current_user, field, value)
-    db.commit()
-    db.refresh(current_user)
-    return current_user

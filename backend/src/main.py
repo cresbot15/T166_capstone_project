@@ -1,15 +1,15 @@
 from fastapi import FastAPI
-from src.routers import auth, groups
+from src.routers import auth, groups, users
 from src.database import engine, Base
 
-# Make sure the models definitely get imported before creating db
+# Make sure models definitely get imported
 from src.models import user, group
 
 app = FastAPI()
 
-# Database connection creation
 Base.metadata.create_all(bind=engine)
 
-# Routes
-app.include_router(auth.router, prefix = "/auth", tags=["Authentication"])
-app.include_router(groups.router, prefix="/groups", tags=["Grouping"])
+# Routers
+app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
+app.include_router(users.router, prefix="/users", tags=["Users"])
+app.include_router(groups.router, prefix="/groups", tags=["Groups"])

@@ -66,7 +66,7 @@ def get_recommended_times(db: Session = Depends(get_db), current_user: User = De
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not in a group")
 
     group = db.query(Group).filter(Group.id == current_user.group_id).first()
-    other_members = [m for m in group.members if m.id != current_user.id]
+    other_members = [m for m in group.members if m.id != current_user.id] # type: ignore
 
     if not other_members:
         return []
