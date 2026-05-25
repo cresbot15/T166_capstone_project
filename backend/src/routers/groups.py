@@ -58,6 +58,8 @@ def get_my_group(db: Session = Depends(get_db), current_user: User = Depends(get
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not in a group")
 
     group = db.query(Group).filter(Group.id == current_user.group_id).first()
+    if group is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
     return GroupResponse.model_validate(group)
 
 @router.get("/recommended-times", response_model=list[str])
@@ -66,7 +68,10 @@ def get_recommended_times(db: Session = Depends(get_db), current_user: User = De
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not in a group")
 
     group = db.query(Group).filter(Group.id == current_user.group_id).first()
-    other_members = [m for m in group.members if m.id != current_user.id] # type: ignore
+    if group is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
+    
+    other_members = [m for m in group.members if m.id != current_user.id]
 
     if not other_members:
         return []
