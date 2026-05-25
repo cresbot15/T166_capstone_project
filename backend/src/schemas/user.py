@@ -54,6 +54,7 @@ class UserResponse(BaseModel):
     delivery_mode: str | None = None
     skills: str | None = None
     time_preferences: list[str] = []
+    group_id: int | None = None
 
 class TokenResponse(BaseModel):
     access_token: str
