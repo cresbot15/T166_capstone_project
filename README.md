@@ -1,8 +1,8 @@
-# T166 Capstone Project
+# TeamUp
 
 Repository for group T166's IFB398 + IFB399 IT capstone project
 
-## Prerequisites
+# Prerequisites
 
 | Tool | Version |
 |---|---|
@@ -10,7 +10,7 @@ Repository for group T166's IFB398 + IFB399 IT capstone project
 | Node.js | 20+ |
 | UV (recommended) | latest |
 
-## Running locally
+# Running locally
 
 Both services must be running at the same time.
 API requires environment variable JWT_SECRET to be set.
