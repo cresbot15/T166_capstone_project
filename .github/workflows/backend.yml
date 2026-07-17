@@ -26,12 +26,15 @@ jobs:
         working-directory: backend
         run: uv sync
 
+      - name: Run backend tests
+        working-directory: backend
+        run: uv run pytest
+
       - name: Start server
         working-directory: backend
         env:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
-        run: uv run fastapi run src/main.py &
+        run: uv run fastapi run src/main.py --port 8000 &
 
       - name: Check server is running
-        run: |
-          curl --retry 5 --retry-delay 2 --retry-connrefused --fail http://127.0.0.1:8000/docs
+        run: curl --retry 5 --retry-delay 2 --retry-connrefused --fail http://127.0.0.1:8000/health
