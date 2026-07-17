@@ -18,6 +18,10 @@ app.add_middleware(
 
 Base.metadata.create_all(bind=engine)
 
+@app.get("/health", tags=["Health"])
+def health_check():
+    return {"status": "ok"}
+
 # Routers
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 app.include_router(users.router, prefix="/users", tags=["Users"])
