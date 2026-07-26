@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Column, Integer, String, ForeignKey
 from sqlalchemy.orm import relationship
 from src.database import Base
 
@@ -7,6 +7,8 @@ class Group(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     preference_code = Column(String, unique=True, nullable=True)
+    unit_id = Column(Integer, ForeignKey("units.id"), nullable=False)
+    unit = relationship("Unit", back_populates="groups")
     members = relationship("User", back_populates="group")
 
     @property
