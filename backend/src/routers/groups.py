@@ -16,13 +16,13 @@ def join_group(body: GroupJoin, db: Session = Depends(get_db), current_user: Use
 
     group = db.query(Group).filter(Group.preference_code == body.preference_code).first()
     if not group:
-        return GroupJoinResponse(valid=False, reason="Invalid preference code")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invalid preference code")
 
     if len(group.members) >= 5:
-        return GroupJoinResponse(valid=False, reason="Group is full")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Group is full")
 
     if group.unit not in current_user.units:
-        return GroupJoinResponse(valid=False, reason="Not enrolled in this group's unit")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enrolled in this unit")
 
     current_user.group_id = group.id
     db.commit()
