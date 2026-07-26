@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from src.database import get_db
 from src.models.group import Group
+from src.models.unit import Unit
 from src.models.user import User
 from src.schemas.group import GroupJoin, GroupJoinResponse, GroupResponse, GroupCreate
 from src.services.auth import get_current_user
@@ -20,6 +21,9 @@ def join_group(body: GroupJoin, db: Session = Depends(get_db), current_user: Use
     if len(group.members) >= 5:
         return GroupJoinResponse(valid=False, reason="Group is full")
 
+    if group.unit not in current_user.units:
+        return GroupJoinResponse(valid=False, reason="Not enrolled in this group's unit")
+
     current_user.group_id = group.id
     db.commit()
     db.refresh(group)
@@ -31,12 +35,19 @@ def create_group(body: GroupCreate, db: Session = Depends(get_db), current_user:
     if current_user.group_id is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Already in a group")
 
+    unit = db.query(Unit).filter(Unit.id == body.unit_id).first()
+    if not unit:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unit not found")
+
+    if unit not in current_user.units:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enrolled in this unit")
+
     if body.preference_code:
         existing = db.query(Group).filter(Group.preference_code == body.preference_code).first()
         if existing:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Preference code already in use")
 
-    group = Group(preference_code=body.preference_code)
+    group = Group(preference_code=body.preference_code, unit_id=unit.id)
     db.add(group)
     db.commit()
     db.refresh(group)

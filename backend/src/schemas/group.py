@@ -9,6 +9,7 @@ class GroupResponse(BaseModel):
 
     id: int
     preference_code: str | None = None
+    unit_id: int
     members: list[UserResponse] = []
     status: str = "provisional"
     common_time_slots: list[str] = []
@@ -20,3 +21,4 @@ class GroupJoinResponse(BaseModel):
 
 class GroupCreate(BaseModel):
     preference_code: str | None = None
+    unit_id: int

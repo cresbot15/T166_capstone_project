@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from src.database import get_db
 from src.models.unit import Unit
 from src.models.user import User
-from src.schemas.unit import UnitCreate, UnitResponse
+from src.schemas.unit import UnitCreate, UnitJoin, UnitResponse
 from src.services.auth import get_current_user
 
 router = APIRouter()
@@ -12,6 +12,10 @@ router = APIRouter()
 @router.get("/", response_model=list[UnitResponse])
 def get_units(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     return db.query(Unit).all()
+
+@router.get("/me", response_model=list[UnitResponse])
+def get_my_units(current_user: User = Depends(get_current_user)):
+    return current_user.units
 
 @router.post("/create", response_model=UnitResponse, status_code=status.HTTP_201_CREATED)
 def create_unit(body: UnitCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -24,3 +28,29 @@ def create_unit(body: UnitCreate, db: Session = Depends(get_db), current_user: U
     db.commit()
     db.refresh(unit)
     return unit
+
+@router.post("/join", response_model=UnitResponse)
+def join_unit(body: UnitJoin, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    unit = db.query(Unit).filter(Unit.code == body.code).first()
+    if not unit:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unit not found")
+
+    if unit in current_user.units:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Already enrolled in unit")
+
+    current_user.units.append(unit)
+    db.commit()
+    db.refresh(unit)
+    return unit
+
+@router.delete("/{code}/leave", response_model=None, status_code=status.HTTP_204_NO_CONTENT)
+def leave_unit(code: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    unit = db.query(Unit).filter(Unit.code == code).first()
+    if not unit or unit not in current_user.units:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not enrolled in unit")
+
+    if current_user.group is not None and current_user.group.unit_id == unit.id:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Leave your group in this unit first")
+
+    current_user.units.remove(unit)
+    db.commit()

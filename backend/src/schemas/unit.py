@@ -4,6 +4,9 @@ class UnitCreate(BaseModel):
     code: str
     name: str | None = None
 
+class UnitJoin(BaseModel):
+    code: str
+
 class UnitResponse(BaseModel):
     model_config = {"from_attributes": True}
 

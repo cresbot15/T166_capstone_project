@@ -1,5 +1,6 @@
 from pydantic import BaseModel, EmailStr, field_validator
 from src.constants import TIME_SLOTS
+from src.schemas.unit import UnitResponse
 
 class UserRegister(BaseModel):
     first_name: str
@@ -55,6 +56,7 @@ class UserResponse(BaseModel):
     skills: str | None = None
     time_preferences: list[str] = []
     group_id: int | None = None
+    units: list[UnitResponse] = []
 
 class TokenResponse(BaseModel):
     access_token: str
