@@ -63,3 +63,16 @@ def auth_headers(client, make_user):
         return {"Authorization": f"Bearer {token}"}
 
     return _auth_headers
+
+@pytest.fixture()
+def create_unit(client):
+    def _create_unit(headers, code="unit_code", name="unit_name"):
+        body = {
+            "code": code,
+            "name": name
+        }
+        r = client.post("/units/create", json=body, headers=headers)
+        assert r.status_code == 201, r.text
+        return r.json()
+
+    return _create_unit

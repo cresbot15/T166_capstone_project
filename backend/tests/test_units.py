@@ -20,3 +20,18 @@ def test_create_unit(client, auth_headers):
 
     assert response_body["code"] == TEST_UNIT_CODE
     assert response_body["name"] == TEST_UNIT_NAME
+
+def test_create_duplicate_unit(client, auth_headers, create_unit):
+    headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+
+    create_unit(headers=headers, code=TEST_UNIT_CODE, name=TEST_UNIT_NAME)
+
+    request_body = {
+        "name": TEST_UNIT_NAME,
+        "code": TEST_UNIT_CODE
+    }
+
+    response = client.post("/units/create", headers=headers, json=request_body)
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Unit code already exists"
+    
