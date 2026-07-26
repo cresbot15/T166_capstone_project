@@ -26,4 +26,4 @@ def health_check():
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 app.include_router(users.router, prefix="/users", tags=["Users"])
 app.include_router(groups.router, prefix="/groups", tags=["Groups"])
-app.include_router(groups.router, prefix="/units", tags=["Units"])
+app.include_router(units.router, prefix="/units", tags=["Units"])
