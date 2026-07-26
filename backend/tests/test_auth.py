@@ -61,3 +61,16 @@ def test_register_login_wrong_password(client, make_user):
     assert response.status_code == 401
     # Login endpoint should not distinguish between incorrect username or password
     assert response.json()["detail"] == "Invalid login details"
+
+# Explicitly test that JWT works
+def test_protected_endpoint_valid_login(client, auth_headers):
+    headers = auth_headers(TEST_USER_EMAIL, TEST_USER_PASSWORD)
+
+    response = client.get("/users/me", headers=headers)
+
+    assert response.status_code == 200
+
+def test_protected_endpoint_no_login(client):
+    response = client.get("/users/me", headers={})
+
+    assert response.status_code == 401
