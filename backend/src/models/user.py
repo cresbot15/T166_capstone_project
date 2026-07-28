@@ -1,7 +1,8 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, JSON
+from sqlalchemy import Column, Integer, String, Boolean, JSON
 from sqlalchemy.orm import relationship
 from src.database import Base
 from src.models.unit import user_units
+from src.models.group import user_groups
 
 class User(Base):
     __tablename__ = "users"
@@ -15,6 +16,10 @@ class User(Base):
     delivery_mode = Column(String, nullable=True)
     skills = Column(String, nullable=True)
     time_preferences = Column(JSON, nullable=False, default=list)
-    group_id = Column(Integer, ForeignKey("groups.id"), nullable=True)
-    group = relationship("Group", back_populates="members")
+    
     units = relationship("Unit", secondary=user_units, back_populates="users")
+    groups = relationship("Group", secondary=user_groups, back_populates="members")
+
+    @property
+    def group_ids(self) -> list[int]:
+        return [g.id for g in self.groups]

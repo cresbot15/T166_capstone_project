@@ -9,22 +9,29 @@ from src.services.auth import get_current_user
 
 router = APIRouter()
 
+def _group_in_unit_or_404(db: Session, unit_id: int, group_id: int) -> Group:
+    group = db.query(Group).filter(Group.id == group_id, Group.unit_id == unit_id).first()
+    if group is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
+    return group
+
+
 @router.post("/join", response_model=GroupJoinResponse)
 def join_group(body: GroupJoin, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.group_id is not None:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Already in a group")
-
     group = db.query(Group).filter(Group.preference_code == body.preference_code).first()
     if not group:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invalid preference code")
+
+    if any(g.unit_id == group.unit_id for g in current_user.groups):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User is already in a group for this unit")
 
     if len(group.members) >= 5:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Group is full")
 
     if group.unit not in current_user.units:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enrolled in this unit")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is not enrolled in this unit")
 
-    current_user.group_id = group.id
+    current_user.groups.append(group)
     db.commit()
     db.refresh(group)
 
@@ -32,9 +39,6 @@ def join_group(body: GroupJoin, db: Session = Depends(get_db), current_user: Use
 
 @router.post("/create", response_model=GroupResponse)
 def create_group(body: GroupCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.group_id is not None:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Already in a group")
-
     unit = db.query(Unit).filter(Unit.id == body.unit_id).first()
     if not unit:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unit not found")
@@ -42,17 +46,21 @@ def create_group(body: GroupCreate, db: Session = Depends(get_db), current_user:
     if unit not in current_user.units:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enrolled in this unit")
 
+    # User is already in a group for this unit
+    if any(g.unit_id == unit.id for g in current_user.groups):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User is already in a group for this unit")
+
     if body.preference_code:
         existing = db.query(Group).filter(Group.preference_code == body.preference_code).first()
         if existing:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Preference code already in use")
 
-    group = Group(preference_code=body.preference_code, unit_id=unit.id)
+    group = Group(preference_code=body.preference_code, unit_id=unit.id, creator_user_id=current_user.id)
     db.add(group)
     db.commit()
     db.refresh(group)
 
-    current_user.group_id = group.id
+    current_user.groups.append(group)
     db.commit()
     db.refresh(group)
 
@@ -63,25 +71,17 @@ def get_groups(db: Session = Depends(get_db), current_user: User = Depends(get_c
     groups = db.query(Group).all()
     return [GroupResponse.model_validate(g) for g in groups]
 
-@router.get("/my-group", response_model=GroupResponse)
-def get_my_group(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.group_id is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not in a group")
+@router.get("/my-groups", response_model=list[GroupResponse])
+def get_my_groups(current_user: User = Depends(get_current_user)):
+    return [GroupResponse.model_validate(g) for g in current_user.groups]
 
-    group = db.query(Group).filter(Group.id == current_user.group_id).first()
-    if group is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
-    return GroupResponse.model_validate(group)
+@router.get("/{unit_id}/{group_id}/recommended-times", response_model=list[str])
+def get_recommended_times(unit_id: int, group_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    group = _group_in_unit_or_404(db, unit_id, group_id)
 
-@router.get("/recommended-times", response_model=list[str])
-def get_recommended_times(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.group_id is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not in a group")
+    if current_user not in group.members:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a member of this group")
 
-    group = db.query(Group).filter(Group.id == current_user.group_id).first()
-    if group is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
-    
     other_members = [m for m in group.members if m.id != current_user.id]
 
     if not other_members:
@@ -94,16 +94,16 @@ def get_recommended_times(db: Session = Depends(get_db), current_user: User = De
 
     return sorted(result)
 
-@router.delete("/leave", response_model=None, status_code=status.HTTP_204_NO_CONTENT)
-def leave_group(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.group_id is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not in a group")
+@router.delete("/{unit_id}/{group_id}/leave", response_model=None, status_code=status.HTTP_204_NO_CONTENT)
+def leave_group(unit_id: int, group_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    group = _group_in_unit_or_404(db, unit_id, group_id)
 
-    group = db.query(Group).filter(Group.id == current_user.group_id).first()
+    if current_user not in group.members:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a member of this group")
 
-    current_user.group_id = None  # type: ignore
+    group.members.remove(current_user)
     db.commit()
 
-    if group and len(group.members) == 0:
+    if len(group.members) == 0:
         db.delete(group)
         db.commit()

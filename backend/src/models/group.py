@@ -1,6 +1,13 @@
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, String, Table, ForeignKey
 from sqlalchemy.orm import relationship
 from src.database import Base
+
+user_groups = Table(
+    "user_groups",
+    Base.metadata,
+    Column("user_id", Integer, ForeignKey("users.id"), primary_key=True),
+    Column("group_id", Integer, ForeignKey("groups.id"), primary_key=True),
+)
 
 class Group(Base):
     __tablename__ = "groups"
@@ -8,8 +15,11 @@ class Group(Base):
     id = Column(Integer, primary_key=True, index=True)
     preference_code = Column(String, unique=True, nullable=True)
     unit_id = Column(Integer, ForeignKey("units.id"), nullable=False)
+    creator_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    
     unit = relationship("Unit", back_populates="groups")
-    members = relationship("User", back_populates="group")
+    creator_user = relationship("User", foreign_keys=[creator_user_id])
+    members = relationship("User", secondary=user_groups, back_populates="groups")
 
     @property
     def common_time_slots(self) -> list[str]:

@@ -10,6 +10,7 @@ class GroupResponse(BaseModel):
     id: int
     preference_code: str | None = None
     unit_id: int
+    creator_user_id: int | None = None
     members: list[UserResponse] = []
     status: str = "provisional"
     common_time_slots: list[str] = []

@@ -49,7 +49,7 @@ def leave_unit(code: str, db: Session = Depends(get_db), current_user: User = De
     if not unit or unit not in current_user.units:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not enrolled in unit")
 
-    if current_user.group is not None and current_user.group.unit_id == unit.id:
+    if any(g.unit_id == unit.id for g in current_user.groups):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Leave your group in this unit first")
 
     current_user.units.remove(unit)
