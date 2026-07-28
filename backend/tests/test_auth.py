@@ -16,7 +16,7 @@ def test_register_creates_user(client):
     assert response_body["email"] == TEST_USER_EMAIL
 
     # A newly created user should not be part of a group or have any units
-    assert response_body["group_id"] is None
+    assert response_body["group_ids"] == []
     assert response_body["units"] == []
 
 def test_register_login(client, make_user):
