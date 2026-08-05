@@ -1,7 +1,6 @@
 from sqlalchemy import Column, Integer, String, Boolean, JSON
 from sqlalchemy.orm import relationship
 from src.database import Base
-from src.models.unit import user_units
 from src.models.group import user_groups
 
 class User(Base):
@@ -17,7 +16,8 @@ class User(Base):
     skills = Column(String, nullable=True)
     time_preferences = Column(JSON, nullable=False, default=list)
     
-    units = relationship("Unit", secondary=user_units, back_populates="users")
+    units = relationship("Unit", secondary="user_units", back_populates="users", viewonly=True)
+    unit_memberships = relationship("UnitMembership", back_populates="user", cascade="all, delete-orphan")
     groups = relationship("Group", secondary=user_groups, back_populates="members")
 
     @property

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from src.database import get_db
-from src.models.unit import Unit
+from src.models.unit import Unit, UnitMembership
 from src.models.user import User
 from src.schemas.unit import UnitCreate, UnitJoin, UnitResponse
 from src.services.auth import get_current_user
@@ -27,6 +27,10 @@ def create_unit(body: UnitCreate, db: Session = Depends(get_db), current_user: U
     db.add(unit)
     db.commit()
     db.refresh(unit)
+
+    db.add(UnitMembership(user_id=current_user.id, unit_id=unit.id, role="owner"))
+    db.commit()
+
     return unit
 
 @router.post("/join", response_model=UnitResponse)
@@ -38,9 +42,8 @@ def join_unit(body: UnitJoin, db: Session = Depends(get_db), current_user: User 
     if unit in current_user.units:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Already enrolled in unit")
 
-    current_user.units.append(unit)
+    db.add(UnitMembership(user_id=current_user.id, unit_id=unit.id, role="student"))
     db.commit()
-    db.refresh(unit)
     return unit
 
 @router.delete("/{code}/leave", response_model=None, status_code=status.HTTP_204_NO_CONTENT)
@@ -52,5 +55,6 @@ def leave_unit(code: str, db: Session = Depends(get_db), current_user: User = De
     if any(g.unit_id == unit.id for g in current_user.groups):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Leave your group in this unit first")
 
-    current_user.units.remove(unit)
+    membership = db.query(UnitMembership).filter_by(user_id=current_user.id, unit_id=unit.id).first()
+    db.delete(membership)
     db.commit()
