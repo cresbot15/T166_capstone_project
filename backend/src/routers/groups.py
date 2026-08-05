@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from src.database import get_db
-from src.models.group import Group
+from src.models.group import Group, GroupMembership
 from src.models.unit import Unit
 from src.models.user import User
 from src.schemas.group import GroupJoin, GroupJoinResponse, GroupResponse, GroupCreate
@@ -32,7 +32,7 @@ def join_group(body: GroupJoin, db: Session = Depends(get_db), current_user: Use
     if group.unit not in current_user.units:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is not enrolled in this unit")
 
-    current_user.groups.append(group)
+    db.add(GroupMembership(user_id=current_user.id, group_id=group.id))
     db.commit()
     db.refresh(group)
 
@@ -56,7 +56,7 @@ def create_group(body: GroupCreate, db: Session = Depends(get_db), current_user:
     db.commit()
     db.refresh(group)
 
-    current_user.groups.append(group)
+    db.add(GroupMembership(user_id=current_user.id, group_id=group.id))
     db.commit()
     db.refresh(group)
 
@@ -97,7 +97,8 @@ def leave_group(unit_id: int, group_id: int, db: Session = Depends(get_db), curr
     if current_user not in group.members:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a member of this group")
 
-    group.members.remove(current_user)
+    membership = db.query(GroupMembership).filter_by(user_id=current_user.id, group_id=group.id).first()
+    db.delete(membership)
     db.commit()
 
     if len(group.members) == 0:

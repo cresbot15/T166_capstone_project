@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from src.database import get_db
 from src.models.unit import Unit, UnitMembership
 from src.models.user import User
-from src.schemas.unit import UnitCreate, UnitJoin, UnitResponse
+from src.schemas.unit import UnitCreate, UnitJoin, UnitResponse, UnitRoleUpdate, UnitMembershipResponse
 from src.services.auth import get_current_user
 
 router = APIRouter()
@@ -58,3 +58,29 @@ def leave_unit(code: str, db: Session = Depends(get_db), current_user: User = De
     membership = db.query(UnitMembership).filter_by(user_id=current_user.id, unit_id=unit.id).first()
     db.delete(membership)
     db.commit()
+
+@router.patch("/{code}/members/{email}", response_model=UnitMembershipResponse)
+def set_member_role(code: str, email: str, body: UnitRoleUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    unit = db.query(Unit).filter(Unit.code == code).first()
+    if not unit:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unit not found")
+
+    caller_membership = db.query(UnitMembership).filter_by(user_id=current_user.id, unit_id=unit.id).first()
+    if not caller_membership or caller_membership.role != "owner":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the unit owner can change member roles")
+
+    target_user = db.query(User).filter(User.email == email).first()
+    if not target_user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    membership = db.query(UnitMembership).filter_by(user_id=target_user.id, unit_id=unit.id).first()
+    if not membership:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User is not enrolled in this unit")
+
+    if membership.role == "owner":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot change the owner's role")
+
+    membership.role = body.role
+    db.commit()
+    db.refresh(membership)
+    return membership

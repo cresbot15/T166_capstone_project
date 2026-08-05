@@ -1,25 +1,30 @@
-from sqlalchemy import Column, Integer, String, Table, ForeignKey
-from sqlalchemy.orm import relationship
+from sqlalchemy import ForeignKey, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.database import Base
 
-user_groups = Table(
-    "user_groups",
-    Base.metadata,
-    Column("user_id", Integer, ForeignKey("users.id"), primary_key=True),
-    Column("group_id", Integer, ForeignKey("groups.id"), primary_key=True),
-)
+
+class GroupMembership(Base):
+    __tablename__ = "user_groups"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    group_id: Mapped[int] = mapped_column(ForeignKey("groups.id"), primary_key=True)
+
+    user = relationship("User", back_populates="group_memberships")
+    group = relationship("Group", back_populates="group_memberships")
+
 
 class Group(Base):
     __tablename__ = "groups"
 
-    id = Column(Integer, primary_key=True, index=True)
-    preference_code = Column(String, unique=True, nullable=True)
-    unit_id = Column(Integer, ForeignKey("units.id"), nullable=False)
-    creator_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
-    
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    preference_code: Mapped[str | None] = mapped_column(String, unique=True)
+    unit_id: Mapped[int] = mapped_column(ForeignKey("units.id"))
+    creator_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+
     unit = relationship("Unit", back_populates="groups")
     creator_user = relationship("User", foreign_keys=[creator_user_id])
-    members = relationship("User", secondary=user_groups, back_populates="groups")
+    members = relationship("User", secondary="user_groups", back_populates="groups", viewonly=True)
+    group_memberships = relationship("GroupMembership", back_populates="group", cascade="all, delete-orphan")
 
     @property
     def common_time_slots(self) -> list[str]:
