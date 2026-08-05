@@ -12,7 +12,7 @@ router = APIRouter()
 def get_me(current_user: User = Depends(get_current_user)):
     return current_user
 
-@router.put("/me", response_model=UserResponse)
+@router.patch("/me", response_model=UserResponse)
 def update_me(update: UserUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     for field, value in update.model_dump(exclude_none=True).items():
         setattr(current_user, field, value)
