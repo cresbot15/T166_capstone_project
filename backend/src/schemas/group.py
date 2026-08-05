@@ -21,5 +21,4 @@ class GroupJoinResponse(BaseModel):
     group: GroupResponse | None = None
 
 class GroupCreate(BaseModel):
-    preference_code: str | None = None
     unit_id: int

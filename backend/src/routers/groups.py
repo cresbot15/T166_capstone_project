@@ -6,6 +6,7 @@ from src.models.unit import Unit
 from src.models.user import User
 from src.schemas.group import GroupJoin, GroupJoinResponse, GroupResponse, GroupCreate
 from src.services.auth import get_current_user
+from src.services.codes import generate_preference_code
 
 router = APIRouter()
 
@@ -50,12 +51,7 @@ def create_group(body: GroupCreate, db: Session = Depends(get_db), current_user:
     if any(g.unit_id == unit.id for g in current_user.groups):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User is already in a group for this unit")
 
-    if body.preference_code:
-        existing = db.query(Group).filter(Group.preference_code == body.preference_code).first()
-        if existing:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Preference code already in use")
-
-    group = Group(preference_code=body.preference_code, unit_id=unit.id, creator_user_id=current_user.id)
+    group = Group(preference_code=generate_preference_code(db), unit_id=unit.id, creator_user_id=current_user.id)
     db.add(group)
     db.commit()
     db.refresh(group)

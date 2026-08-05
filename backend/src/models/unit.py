@@ -7,6 +7,7 @@ user_units = Table(
     Base.metadata,
     Column("user_id", Integer, ForeignKey("users.id"), primary_key=True),
     Column("unit_id", Integer, ForeignKey("units.id"), primary_key=True),
+    Column("role", String, nullable=False, default="student"),
 )
 
 class Unit(Base):
