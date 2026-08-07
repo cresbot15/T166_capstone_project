@@ -19,7 +19,3 @@ class User(Base):
     unit_memberships = relationship("UnitMembership", back_populates="user", cascade="all, delete-orphan")
     groups = relationship("Group", secondary="user_groups", back_populates="members", viewonly=True)
     group_memberships = relationship("GroupMembership", back_populates="user", cascade="all, delete-orphan")
-
-    @property
-    def group_ids(self) -> list[int]:
-        return [g.id for g in self.groups]
