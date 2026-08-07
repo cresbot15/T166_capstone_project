@@ -1,4 +1,4 @@
-from sqlalchemy import ForeignKey, String
+from sqlalchemy import Boolean, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.database import Base
 
@@ -20,6 +20,7 @@ class Group(Base):
     preference_code: Mapped[str | None] = mapped_column(String, unique=True)
     unit_id: Mapped[int] = mapped_column(ForeignKey("units.id"))
     creator_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    is_public: Mapped[bool] = mapped_column(Boolean, default=False)
 
     unit = relationship("Unit", back_populates="groups")
     creator_user = relationship("User", foreign_keys=[creator_user_id])

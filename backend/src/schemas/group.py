@@ -11,6 +11,7 @@ class GroupResponse(BaseModel):
     preference_code: str | None = None
     unit_id: int
     creator_user_id: int | None = None
+    is_public: bool = False
     members: list[UserResponse] = []
     status: str = "provisional"
     common_time_slots: list[str] = []
@@ -22,3 +23,4 @@ class GroupJoinResponse(BaseModel):
 
 class GroupCreate(BaseModel):
     unit_id: int
+    is_public: bool = False

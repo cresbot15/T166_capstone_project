@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from src.database import get_db
 from src.models.group import Group, GroupMembership
-from src.models.unit import Unit
+from src.models.unit import Unit, UnitMembership
 from src.models.user import User
 from src.schemas.group import GroupJoin, GroupJoinResponse, GroupResponse, GroupCreate
 from src.services.auth import get_current_user
@@ -51,7 +52,7 @@ def create_group(body: GroupCreate, db: Session = Depends(get_db), current_user:
     if any(g.unit_id == unit.id for g in current_user.groups):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User is already in a group for this unit")
 
-    group = Group(preference_code=generate_preference_code(db), unit_id=unit.id, creator_user_id=current_user.id)
+    group = Group(preference_code=generate_preference_code(db), unit_id=unit.id, creator_user_id=current_user.id, is_public=body.is_public)
     db.add(group)
     db.commit()
     db.refresh(group)
@@ -62,14 +63,22 @@ def create_group(body: GroupCreate, db: Session = Depends(get_db), current_user:
 
     return GroupResponse.model_validate(group)
 
-@router.get("/", response_model=list[GroupResponse])
-def get_groups(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    groups = db.query(Group).all()
-    return [GroupResponse.model_validate(g) for g in groups]
-
 @router.get("/my-groups", response_model=list[GroupResponse])
 def get_my_groups(current_user: User = Depends(get_current_user)):
     return [GroupResponse.model_validate(g) for g in current_user.groups]
+
+@router.get("/{unit_id}", response_model=list[GroupResponse])
+def get_groups(unit_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    membership = db.query(UnitMembership).filter_by(user_id=current_user.id, unit_id=unit_id).first()
+    if not membership:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enrolled in this unit")
+
+    query = db.query(Group).filter(Group.unit_id == unit_id)
+    if membership.role not in ("owner", "administrator"):
+        member_group_ids = [g.id for g in current_user.groups if g.unit_id == unit_id]
+        query = query.filter(or_(Group.is_public == True, Group.id.in_(member_group_ids)))
+
+    return [GroupResponse.model_validate(g) for g in query.all()]
 
 @router.get("/{unit_id}/{group_id}/recommended-times", response_model=list[str])
 def get_recommended_times(unit_id: int, group_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
