@@ -21,10 +21,6 @@ def register(user: UserRegister, db: Session = Depends(get_db)):
         last_name=user.last_name,
         email=user.email,
         password_hash=hash_password(user.password),
-        is_new_student=user.is_new_student,
-        delivery_mode=user.delivery_mode,
-        skills=user.skills,
-        time_preferences=user.time_preferences,
     )
     db.add(db_user)
     db.commit()

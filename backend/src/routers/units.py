@@ -2,9 +2,18 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from src.database import get_db
-from src.models.unit import Unit, UnitMembership
+from src.models.unit import Unit, UnitMembership, UnitProfile
 from src.models.user import User
-from src.schemas.unit import UnitCreate, UnitJoin, UnitResponse, UnitPublicResponse, UnitRoleUpdate, UnitMembershipResponse
+from src.schemas.unit import (
+    UnitCreate,
+    UnitJoin,
+    UnitResponse,
+    UnitPublicResponse,
+    UnitRoleUpdate,
+    UnitMembershipResponse,
+    UnitProfileUpdate,
+    UnitMeResponse,
+)
 from src.services.auth import get_current_user
 from src.services.codes import generate_unit_code
 
@@ -26,6 +35,7 @@ def create_unit(body: UnitCreate, db: Session = Depends(get_db), current_user: U
     db.refresh(unit)
 
     db.add(UnitMembership(user_id=current_user.id, unit_id=unit.id, role="owner"))
+    db.add(UnitProfile(user_id=current_user.id, unit_id=unit.id))
     db.commit()
 
     return unit
@@ -40,29 +50,67 @@ def join_unit(body: UnitJoin, db: Session = Depends(get_db), current_user: User 
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Already enrolled in unit")
 
     db.add(UnitMembership(user_id=current_user.id, unit_id=unit.id, role="student"))
+    db.add(UnitProfile(user_id=current_user.id, unit_id=unit.id))
     db.commit()
     return unit
 
-@router.delete("/{code}/leave", response_model=None, status_code=status.HTTP_204_NO_CONTENT)
-def leave_unit(code: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    unit = db.query(Unit).filter(Unit.code == code).first()
-    if not unit or unit not in current_user.units:
+@router.delete("/{unit_id}/leave", response_model=None, status_code=status.HTTP_204_NO_CONTENT)
+def leave_unit(unit_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    membership = db.query(UnitMembership).filter_by(user_id=current_user.id, unit_id=unit_id).first()
+    if not membership:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not enrolled in unit")
 
-    if any(g.unit_id == unit.id for g in current_user.groups):
+    if any(g.unit_id == unit_id for g in current_user.groups):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Leave your group in this unit first")
 
-    membership = db.query(UnitMembership).filter_by(user_id=current_user.id, unit_id=unit.id).first()
     db.delete(membership)
+
+    profile = db.query(UnitProfile).filter_by(user_id=current_user.id, unit_id=unit_id).first()
+    db.delete(profile)
+
     db.commit()
 
-@router.patch("/{code}/members/{email}", response_model=UnitMembershipResponse)
-def set_member_role(code: str, email: str, body: UnitRoleUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    unit = db.query(Unit).filter(Unit.code == code).first()
-    if not unit:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unit not found")
+@router.get("/{unit_id}/me", response_model=UnitMeResponse)
+def get_my_unit_profile(unit_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    membership = db.query(UnitMembership).filter_by(user_id=current_user.id, unit_id=unit_id).first()
+    if not membership:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not enrolled in this unit")
 
-    caller_membership = db.query(UnitMembership).filter_by(user_id=current_user.id, unit_id=unit.id).first()
+    profile = db.query(UnitProfile).filter_by(user_id=current_user.id, unit_id=unit_id).first()
+
+    return UnitMeResponse(
+        unit_id=unit_id,
+        role=membership.role,
+        is_new_student=profile.is_new_student,
+        delivery_mode=profile.delivery_mode,
+        skills=profile.skills,
+        time_preferences=profile.time_preferences,
+    )
+
+@router.patch("/{unit_id}/me", response_model=UnitMeResponse)
+def update_my_unit_profile(unit_id: int, body: UnitProfileUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    membership = db.query(UnitMembership).filter_by(user_id=current_user.id, unit_id=unit_id).first()
+    if not membership:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not enrolled in this unit")
+
+    profile = db.query(UnitProfile).filter_by(user_id=current_user.id, unit_id=unit_id).first()
+    for field, value in body.model_dump(exclude_none=True).items():
+        setattr(profile, field, value)
+    db.commit()
+    db.refresh(profile)
+
+    return UnitMeResponse(
+        unit_id=unit_id,
+        role=membership.role,
+        is_new_student=profile.is_new_student,
+        delivery_mode=profile.delivery_mode,
+        skills=profile.skills,
+        time_preferences=profile.time_preferences,
+    )
+
+@router.patch("/{unit_id}/members/{email}", response_model=UnitMembershipResponse)
+def set_member_role(unit_id: int, email: str, body: UnitRoleUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    caller_membership = db.query(UnitMembership).filter_by(user_id=current_user.id, unit_id=unit_id).first()
     if not caller_membership or caller_membership.role != "owner":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the unit owner can change member roles")
 
@@ -70,7 +118,7 @@ def set_member_role(code: str, email: str, body: UnitRoleUpdate, db: Session = D
     if not target_user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    membership = db.query(UnitMembership).filter_by(user_id=target_user.id, unit_id=unit.id).first()
+    membership = db.query(UnitMembership).filter_by(user_id=target_user.id, unit_id=unit_id).first()
     if not membership:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User is not enrolled in this unit")
 

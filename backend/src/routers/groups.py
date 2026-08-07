@@ -92,7 +92,11 @@ def get_recommended_times(unit_id: int, group_id: int, db: Session = Depends(get
     if not other_members:
         return []
 
-    sets = [set(m.time_preferences or []) for m in other_members]
+    sets = []
+    for m in other_members:
+        profile = next((p for p in m.unit_profiles if p.unit_id == unit_id), None)
+        sets.append(set(profile.time_preferences if profile else []))
+
     result = sets[0]
     for s in sets[1:]:
         result = result & s

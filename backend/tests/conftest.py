@@ -41,7 +41,6 @@ def make_user(client):
             "last_name": "User",
             "email": email,
             "password": password,
-            "time_preferences": [],
         }
         r = client.post("/auth/register", json=body)
         assert r.status_code == 200, r.text

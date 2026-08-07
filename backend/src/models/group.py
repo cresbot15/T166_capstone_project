@@ -31,7 +31,10 @@ class Group(Base):
     def common_time_slots(self) -> list[str]:
         if not self.members:
             return []
-        sets = [set(m.time_preferences or []) for m in self.members]
+        sets = []
+        for m in self.members:
+            profile = next((p for p in m.unit_profiles if p.unit_id == self.unit_id), None)
+            sets.append(set(profile.time_preferences if profile else []))
         result = sets[0]
         for s in sets[1:]:
             result = result & s
