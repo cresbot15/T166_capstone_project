@@ -2,7 +2,6 @@ from typing import Literal
 from pydantic import BaseModel
 
 class UnitCreate(BaseModel):
-    code: str
     name: str | None = None
 
 class UnitJoin(BaseModel):
@@ -13,6 +12,12 @@ class UnitResponse(BaseModel):
 
     id: int
     code: str
+    name: str | None = None
+
+class UnitPublicResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: int
     name: str | None = None
 
 class UnitRoleUpdate(BaseModel):

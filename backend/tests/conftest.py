@@ -66,9 +66,8 @@ def auth_headers(client, make_user):
 
 @pytest.fixture()
 def create_unit(client):
-    def _create_unit(headers, code="unit_code", name="unit_name"):
+    def _create_unit(headers, name="unit_name"):
         body = {
-            "code": code,
             "name": name
         }
         r = client.post("/units/create", json=body, headers=headers)
