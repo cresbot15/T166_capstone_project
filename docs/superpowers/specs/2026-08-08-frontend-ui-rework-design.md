@@ -31,7 +31,9 @@ backend actually supports today.
 
 - **Custom per-unit fields** (e.g. a unit admin defining extra profile questions like
   "international student?"). No backend support exists; would need a new schema. Not
-  part of this rework.
+  part of this rework — but Unit Setup will carry a clearly marked code comment/TODO
+  noting where admin-defined questions would render once that feature exists, so it's
+  easy to find later.
 - **Pre-provisioned/admin-created accounts.** Registration stays self-serve only.
 - **Student ID field.** No backend field exists; dropped from Register.
 - **A real "Explore Students & Groups" backend endpoint.** No endpoint exists to list a
@@ -130,6 +132,10 @@ with every other screen.
 Delivery mode (Online/In-person radio), skills (free text), `TimeGrid` availability →
 `PATCH /units/{id}/me`. This is the existing register form's availability section,
 rehomed here since it's per-unit data. On submit → `/home`.
+
+A code comment/TODO marks the spot below the standard fields where admin-defined
+questions would render once a custom-per-unit-field system exists (see Non-goals) —
+no component or rendering logic yet, just a clearly flagged insertion point.
 
 ### Home (`/home`)
 `PageHeader` ("Welcome, {first name}!"), two action buttons (`Create a Group`,
