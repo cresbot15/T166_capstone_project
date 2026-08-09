@@ -11,10 +11,11 @@ from src.schemas.unit import (
     UnitPublicResponse,
     UnitRoleUpdate,
     UnitMembershipResponse,
+    UnitMemberResponse,
     UnitProfileUpdate,
     UnitMeResponse,
 )
-from src.services.auth import get_current_user
+from src.services.auth import get_current_user, require_unit_staff
 from src.services.codes import generate_unit_code
 
 router = APIRouter()
@@ -108,6 +109,35 @@ def update_my_unit_profile(unit_id: int, body: UnitProfileUpdate, db: Session = 
         time_preferences=profile.time_preferences,
     )
 
+@router.get("/{unit_id}/members", response_model=list[UnitMemberResponse])
+def get_unit_members(unit_id: int, db: Session = Depends(get_db), _staff: UnitMembership = Depends(require_unit_staff)):
+    memberships = (
+        db.query(UnitMembership, User)
+        .join(User, User.id == UnitMembership.user_id)
+        .filter(UnitMembership.unit_id == unit_id)
+        .order_by(User.last_name, User.first_name)
+        .all()
+    )
+
+    profiles = {p.user_id: p for p in db.query(UnitProfile).filter(UnitProfile.unit_id == unit_id).all()}
+
+    members = []
+    for membership, user in memberships:
+        profile = profiles.get(user.id)
+        members.append(UnitMemberResponse(
+            user_id=user.id,
+            first_name=user.first_name,
+            last_name=user.last_name,
+            email=user.email,
+            role=membership.role,
+            is_new_student=profile.is_new_student if profile else False,
+            delivery_mode=profile.delivery_mode if profile else None,
+            skills=profile.skills if profile else None,
+            time_preferences=profile.time_preferences if profile else [],
+        ))
+
+    return members
+
 @router.patch("/{unit_id}/members/{email}", response_model=UnitMembershipResponse)
 def set_member_role(unit_id: int, email: str, body: UnitRoleUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     caller_membership = db.query(UnitMembership).filter_by(user_id=current_user.id, unit_id=unit_id).first()
@@ -131,9 +161,9 @@ def set_member_role(unit_id: int, email: str, body: UnitRoleUpdate, db: Session 
     return membership
 
 @router.get("/{unit_id}/export/students")
-def export_unit_students(unit_id: int, db: Session =Depends(get_db), curent_user: User = Depends(get_current_user)):
+def export_unit_students(unit_id: int, db: Session = Depends(get_db), curent_user: User = Depends(get_current_user)):
     pass
 
 @router.get("/{unit_id}/export/groups")
-def export_unit_groups(unit_id: int, db: Session =Depends(get_db), curent_user: User = Depends(get_current_user)):
+def export_unit_groups(unit_id: int, db: Session = Depends(get_db), curent_user: User = Depends(get_current_user)):
     pass

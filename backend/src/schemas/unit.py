@@ -1,5 +1,5 @@
 from typing import Literal
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, EmailStr, field_validator
 from src.constants import TIME_SLOTS
 
 class UnitCreate(BaseModel):
@@ -47,6 +47,17 @@ class UnitProfileUpdate(BaseModel):
         if invalid:
             raise ValueError(f"Invalid time slots: {sorted(invalid)}")
         return v
+
+class UnitMemberResponse(BaseModel):
+    user_id: int
+    first_name: str
+    last_name: str
+    email: EmailStr
+    role: str
+    is_new_student: bool
+    delivery_mode: str | None = None
+    skills: str | None = None
+    time_preferences: list[str] = []
 
 class UnitMeResponse(BaseModel):
     unit_id: int
