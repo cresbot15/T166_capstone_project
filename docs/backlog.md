@@ -52,3 +52,22 @@ all 5 days in the grid.
 **Risk:** moderate — this is a real feature, not a tweak. Worth its own
 design pass (brainstorming → spec → plan) rather than being folded into
 another feature's implementation.
+
+## 3. Unit enrollment total for StatDonut
+
+**Current state:** the Home dashboard's donut stat (`StatDonut` component,
+`frontend/src/lib/components/StatDonut.svelte`) shows "N students registered"
+as a real percentage (`value / total`), matching the wireframe's intent. But
+there is no field anywhere representing a unit's total enrollment/capacity —
+`Unit` (`backend/src/models/unit.py`) only has `id`, `code`, `name`. The
+frontend currently passes a placeholder constant for `total` (see the `TODO`
+comment in `StatDonut.svelte` and in the Home page once built), so the
+donut's percentage is not yet meaningful against real enrollment numbers.
+
+**What would be needed:** a field on `Unit` (e.g. `expected_enrollment: int
+| None`), settable by the unit owner (likely at creation time, alongside
+name/code), and returned on `UnitResponse` so the frontend can compute a
+real percentage instead of using the placeholder.
+
+**Risk:** low — a single new column plus exposing it on the existing
+response schema. No validation complexity like the time-slot items above.
