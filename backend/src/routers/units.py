@@ -129,3 +129,11 @@ def set_member_role(unit_id: int, email: str, body: UnitRoleUpdate, db: Session 
     db.commit()
     db.refresh(membership)
     return membership
+
+@router.get("/{unit_id}/export/students")
+def export_unit_students(unit_id: int, db: Session =Depends(get_db), curent_user: User = Depends(get_current_user)):
+    pass
+
+@router.get("/{unit_id}/export/groups")
+def export_unit_groups(unit_id: int, db: Session =Depends(get_db), curent_user: User = Depends(get_current_user)):
+    pass
