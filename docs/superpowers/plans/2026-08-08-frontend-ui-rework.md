@@ -21,6 +21,24 @@
 - Backend is not modified by this plan — every task calls an endpoint that already exists (verified against `backend/src/routers/*.py` during design).
 - Old page implementations are being fully replaced, not patched — write new file contents wholesale rather than diffing against the old logic.
 
+## Current Progress (resume here)
+
+_Last updated: 2026-08-10._
+
+**Done, committed:** Tasks 1-12 (theme, stores, `api.ts`, all 7 components, navbar, Sign In), plus **Task 16 and Task 17** (mock data + Home dashboard), which were pulled forward out of plan order at the user's request to get a demoable Home screen quickly. All checked off below.
+
+**In progress: Task 13 (Register rewrite).** The new script block (see Task 13, Step 1) was shown and approved in chat, but **not yet written to disk** — `frontend/src/routes/register/+page.svelte` is still the old pre-rewrite version on disk right now. The template piece (Step 1's second half) has not been shown yet. Resume by re-showing/writing the script block, then the template, per Task 13 below.
+
+**Not started:** Tasks 14, 15 (onboarding pages), 18 (Explore), 19-20 (Group/Profile rewrites — these still have the 20 pre-existing `npm run check` errors described throughout the plan), 21 (final verification).
+
+**Known, expected `npm run check` state as of Task 17:** 21 errors — 20 in `group`/`profile`/`register` (unrewritten routes) + 1 in `+layout.svelte` (`/explore` route-typing, resolves once Task 18 creates that route folder).
+
+**Demo environment set up for this session** (not part of the plan's own tasks, but needed to show working screens):
+- Backend: `cd backend && python3 -m venv .venv && source .venv/bin/activate && pip install "bcrypt>=5.0.0" "fastapi[standard]>=0.135.3" "httpx>=0.28.1" "python-jose>=3.5.0" "sqlalchemy>=2.0.49"` (one-time; `uv` isn't installed on this machine, so a plain venv was used instead of the README's `uv sync`). Then run: `JWT_SECRET="local-dev-demo-secret" .venv/bin/fastapi dev src/main.py`. `.venv` and `app.db` are already covered by `backend/.gitignore`.
+- Frontend: `cd frontend && npm run dev`.
+- Both dev servers are **currently stopped** — restart them with the commands above when resuming.
+- A demo account + unit were seeded directly via API calls (not through the UI, since onboarding pages don't exist yet): email `demo@teamup-demo.example.com`, password `demo1234`, unit "IFB398 Capstone". This data lives in the local `backend/app.db` SQLite file (gitignored) — if that file is deleted/recreated, the demo account needs reseeding (same `register` → `login` → `units/create` calls, in that order).
+
 ---
 
 ### Task 1: DaisyUI custom theme
@@ -31,7 +49,7 @@
 **Interfaces:**
 - Produces: DaisyUI theme named `teamup` (default), exposing `--color-primary`, `--color-secondary`, `--color-accent`, `--color-warning`, `--color-success`, `--color-error`, `--color-base-100`, `--color-base-200`, `--color-base-300`, `--color-base-content` — every later task's DaisyUI classes (`btn-primary`, `badge-success`, etc.) and every custom component reading `var(--color-accent)` depend on these existing.
 
-- [ ] **Step 1: Write the theme**
+- [x] **Step 1: Write the theme**
 
 Replace the full contents of `frontend/src/app.css` with:
 
@@ -80,16 +98,16 @@ h2 {
 }
 ```
 
-- [ ] **Step 2: Type/compile check**
+- [x] **Step 2: Type/compile check**
 
 Run: `cd frontend && npm run check`
 Expected: no errors (CSS isn't type-checked, but this confirms nothing else broke).
 
-- [ ] **Step 3: Visual check**
+- [x] **Step 3: Visual check**
 
 Run: `cd frontend && npm run dev`, open `http://localhost:5173`. Expected: the sign-in page's background is light lavender and its button is dark navy (DaisyUI's default component classes already pick up the new theme even though no page has been rewritten yet). This exact CSS block was verified against the installed DaisyUI 5.5.20 via `npx vite build` — the compiled output contains `--color-primary:#1e1b3a` and the `teamup` theme name with no warnings, so this step should just confirm the visual result matches.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add frontend/src/app.css
@@ -107,7 +125,7 @@ git commit -m "style: add teamup DaisyUI theme (navy/purple/amber, light backgro
 - Consumes: `UnitResponse` type from `$lib/api` (already exists: `{ id: number; code: string; name: string | null }`).
 - Produces: `activeUnit` store with `subscribe`, `set(val: UnitResponse | null)`, `clear()` — same shape as the existing `token` store. Every later page/component reads `$activeUnit` and calls `activeUnit.set(...)` / `activeUnit.clear()`.
 
-- [ ] **Step 1: Add the store**
+- [x] **Step 1: Add the store**
 
 Replace the full contents of `frontend/src/lib/stores.ts` with:
 
@@ -158,12 +176,12 @@ export const user = writable<UserResponse | null>(null);
 export const activeUnit = createActiveUnitStore();
 ```
 
-- [ ] **Step 2: Type/compile check**
+- [x] **Step 2: Type/compile check**
 
 Run: `cd frontend && npm run check`
 Expected: FAILS — `$lib/api` doesn't export `UnitResponse` yet (Task 3 adds it). This is expected; confirms the store correctly depends on the upcoming API types.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add frontend/src/lib/stores.ts
@@ -182,11 +200,11 @@ git commit -m "feat: add persisted activeUnit store"
 **Interfaces:**
 - Produces: `UserResponse { id, first_name, last_name, email }`, `UnitResponse { id, code, name }`, `UnitMeResponse { unit_id, role, is_new_student, delivery_mode, skills, time_preferences }`, `UnitMembershipResponse { user_id, unit_id, role }`, `GroupResponse { id, preference_code, unit_id, creator_user_id, is_public, members, status, common_time_slots }`, `GroupJoinResponse { valid, reason?, group? }`, and `api.{register, login, getMe, getMyUnits, joinUnit, createUnit, getMyUnitProfile, updateMyUnitProfile, setMemberRole, createGroup, joinGroup, getMyGroups, getRecommendedTimes, leaveGroup}` — every page task below calls these exact method names/signatures.
 
-- [ ] **Step 1: Verify backend paths first**
+- [x] **Step 1: Verify backend paths first**
 
 Run: `cd backend && uv run fastapi dev src/main.py` (leave it running), then open `http://localhost:8000/docs` and confirm these operations exist exactly: `POST /auth/register`, `POST /auth/login`, `GET /users/me`, `GET /units/me`, `POST /units/join`, `POST /units/create`, `GET /units/{unit_id}/me`, `PATCH /units/{unit_id}/me`, `PATCH /units/{unit_id}/members/{email}`, `POST /groups/create`, `POST /groups/join`, `GET /groups/my-groups`, `GET /groups/{unit_id}/{group_id}/recommended-times`, `DELETE /groups/{unit_id}/{group_id}/leave`. Expected: all present (this plan was written against `backend/src/routers/{auth,users,units,groups}.py` as of the `unit-owned-groups-ui` branch — this step catches drift if the backend has changed since).
 
-- [ ] **Step 2: Replace `api.ts`**
+- [x] **Step 2: Replace `api.ts`**
 
 Replace the full contents of `frontend/src/lib/api.ts` with:
 
@@ -303,12 +321,12 @@ export const api = {
 };
 ```
 
-- [ ] **Step 3: Type/compile check**
+- [x] **Step 3: Type/compile check**
 
 Run: `cd frontend && npm run check`
 Expected: FAILS — the existing (not-yet-rewritten) `+page.svelte` files for `/`, `/register`, `/profile`, `/group` still reference old fields (`is_new_student` on register, `group_id` on `UserResponse`, `api.getMyGroup`, etc.) that no longer exist. This is expected; each page is fixed in its own task below. Confirm the errors are all in `src/routes/**/+page.svelte` and not in `stores.ts` (Task 2's error should now be gone) or `api.ts` itself.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add frontend/src/lib/api.ts
@@ -325,7 +343,7 @@ git commit -m "feat: rewrite api client for unit-scoped backend model"
 **Interfaces:**
 - Produces: `StatusPill` component, prop `status: 'complete' | 'incomplete' | 'pending'`, optional `label?: string`. Exported type `Status`. Consumed by the Explore page (Task 18).
 
-- [ ] **Step 1: Write the component**
+- [x] **Step 1: Write the component**
 
 ```svelte
 <script module lang="ts">
@@ -353,12 +371,12 @@ git commit -m "feat: rewrite api client for unit-scoped backend model"
 </span>
 ```
 
-- [ ] **Step 2: Type/compile check**
+- [x] **Step 2: Type/compile check**
 
 Run: `cd frontend && npm run check`
 Expected: no new errors introduced by this file (the pre-existing route errors from Task 3 remain until their own tasks).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add frontend/src/lib/components/StatusPill.svelte
@@ -375,7 +393,7 @@ git commit -m "feat: add StatusPill component"
 **Interfaces:**
 - Produces: `PageHeader` component, props `title: string`, `subtitle?: string`, optional `actions?: Snippet` slot for right-aligned buttons. Consumed by Home, Explore, Group, Profile pages (Tasks 17-20).
 
-- [ ] **Step 1: Write the component**
+- [x] **Step 1: Write the component**
 
 ```svelte
 <script lang="ts">
@@ -403,12 +421,12 @@ git commit -m "feat: add StatusPill component"
 </div>
 ```
 
-- [ ] **Step 2: Type/compile check**
+- [x] **Step 2: Type/compile check**
 
 Run: `cd frontend && npm run check`
 Expected: no new errors from this file.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add frontend/src/lib/components/PageHeader.svelte
@@ -425,7 +443,7 @@ git commit -m "feat: add PageHeader component"
 **Interfaces:**
 - Produces: `SectionCard` component, props `title?: string`, `children: Snippet`. Consumed by Home, Group, Profile pages.
 
-- [ ] **Step 1: Write the component**
+- [x] **Step 1: Write the component**
 
 ```svelte
 <script lang="ts">
@@ -444,12 +462,12 @@ git commit -m "feat: add PageHeader component"
 </div>
 ```
 
-- [ ] **Step 2: Type/compile check**
+- [x] **Step 2: Type/compile check**
 
 Run: `cd frontend && npm run check`
 Expected: no new errors from this file.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add frontend/src/lib/components/SectionCard.svelte
@@ -467,7 +485,7 @@ git commit -m "feat: add SectionCard component"
 - Consumes: `DAYS`, `PERIODS` from `$lib/timeslots` (existing, unchanged: 5 days × `Morning`/`Afternoon`/`Evening`, slot key `${day}${period}`, e.g. `mondayMorning`).
 - Produces: `TimeGrid` component, props `selected: Set<string>`, `readonly?: boolean` (default `false`), `onToggle?: (slot: string) => void`. Consumed by Unit Setup, Group, Profile pages.
 
-- [ ] **Step 1: Write the component**
+- [x] **Step 1: Write the component**
 
 ```svelte
 <script lang="ts">
@@ -524,12 +542,12 @@ git commit -m "feat: add SectionCard component"
 </table>
 ```
 
-- [ ] **Step 2: Type/compile check**
+- [x] **Step 2: Type/compile check**
 
 Run: `cd frontend && npm run check`
 Expected: no new errors from this file.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add frontend/src/lib/components/TimeGrid.svelte
@@ -546,7 +564,7 @@ git commit -m "feat: add TimeGrid component"
 **Interfaces:**
 - Produces: `CountdownTimer` component, prop `targetDate: string` (ISO datetime). Consumed by Home page (Task 17).
 
-- [ ] **Step 1: Write the component**
+- [x] **Step 1: Write the component**
 
 ```svelte
 <script lang="ts">
@@ -593,12 +611,12 @@ git commit -m "feat: add TimeGrid component"
 </div>
 ```
 
-- [ ] **Step 2: Type/compile check**
+- [x] **Step 2: Type/compile check**
 
 Run: `cd frontend && npm run check`
 Expected: no new errors from this file.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add frontend/src/lib/components/CountdownTimer.svelte
@@ -615,7 +633,7 @@ git commit -m "feat: add CountdownTimer component"
 **Interfaces:**
 - Produces: `StatDonut` component, props `value: number`, `total: number`, `label: string`. Consumed by Home page (Task 17). Renders a real percentage (`value / total`) as a pie-slice arc — not decorative. `total` has no real backend source yet (see `docs/backlog.md`, "Unit enrollment total for StatDonut"); callers pass a placeholder constant until that field exists.
 
-- [ ] **Step 1: Write the component**
+- [x] **Step 1: Write the component**
 
 ```svelte
 <script lang="ts">
@@ -658,12 +676,12 @@ git commit -m "feat: add CountdownTimer component"
 </div>
 ```
 
-- [ ] **Step 2: Type/compile check + visual check**
+- [x] **Step 2: Type/compile check + visual check**
 
 Run: `cd frontend && npm run check`. Then in a scratch route or via Storybook-free manual check (it'll be visible for real once Task 17 wires it into Home) — for now just confirm no type errors.
 Expected: no new errors from this file.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add frontend/src/lib/components/StatDonut.svelte
@@ -681,7 +699,7 @@ git commit -m "feat: add StatDonut component"
 - Consumes: `UnitResponse` type from `$lib/api`.
 - Produces: `UnitSwitcher` component, props `units: UnitResponse[]`, `activeUnitId: number | null`, `onSwitch: (unit: UnitResponse) => void`. Consumed by the layout navbar (Task 11).
 
-- [ ] **Step 1: Write the component**
+- [x] **Step 1: Write the component**
 
 ```svelte
 <script lang="ts">
@@ -716,12 +734,12 @@ git commit -m "feat: add StatDonut component"
 </div>
 ```
 
-- [ ] **Step 2: Type/compile check**
+- [x] **Step 2: Type/compile check**
 
 Run: `cd frontend && npm run check`
 Expected: no new errors from this file.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add frontend/src/lib/components/UnitSwitcher.svelte
@@ -739,7 +757,7 @@ git commit -m "feat: add UnitSwitcher component"
 - Consumes: `token`, `user`, `activeUnit` stores (`$lib/stores`); `api.getMe`, `api.getMyUnits` (`$lib/api`); `UnitSwitcher` (Task 10).
 - Produces: the app shell every route renders inside. No other task depends on new exports from this file (it's a leaf in the dependency graph, but everything visually sits inside it).
 
-- [ ] **Step 1: Rewrite the layout**
+- [x] **Step 1: Rewrite the layout**
 
 Replace the full contents of `frontend/src/routes/+layout.svelte` with:
 
@@ -830,12 +848,12 @@ Replace the full contents of `frontend/src/routes/+layout.svelte` with:
 {@render children()}
 ```
 
-- [ ] **Step 2: Type/compile check**
+- [x] **Step 2: Type/compile check**
 
 Run: `cd frontend && npm run check`
 Expected: the route-level errors from Task 3 still show (routes not yet rewritten); no *new* errors from `+layout.svelte` itself.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add frontend/src/routes/+layout.svelte
@@ -852,7 +870,7 @@ git commit -m "feat: rewrite navbar with unit switcher"
 **Interfaces:**
 - Consumes: `api.login`, `api.getMe`, `api.getMyUnits` (`$lib/api`); `token`, `user`, `activeUnit` stores.
 
-- [ ] **Step 1: Rewrite the page**
+- [x] **Step 1: Rewrite the page**
 
 Replace the full contents of `frontend/src/routes/+page.svelte` with:
 
@@ -928,16 +946,16 @@ Replace the full contents of `frontend/src/routes/+page.svelte` with:
 </div>
 ```
 
-- [ ] **Step 2: Type/compile check**
+- [x] **Step 2: Type/compile check**
 
 Run: `cd frontend && npm run check`
 Expected: this file's prior errors are gone; remaining errors are only in `/register`, `/profile`, `/group` (not yet rewritten).
 
-- [ ] **Step 3: Manual check**
+- [x] **Step 3: Manual check**
 
 With the backend running (`cd backend && uv run fastapi dev src/main.py`) and frontend running (`cd frontend && npm run dev`), log in with an existing test account. Expected: redirected to `/onboarding/unit` if the account has no units, or `/home` (404 for now — built in Task 17) if it does.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add frontend/src/routes/+page.svelte
@@ -1345,7 +1363,7 @@ git commit -m "feat: add unit setup onboarding page"
 **Interfaces:**
 - Produces: `MockStudent { id, name, degree, skills, status, email }` and `mockStudents: MockStudent[]`. Consumed by Home (Task 17, for the registered-count stat) and Explore (Task 18).
 
-- [ ] **Step 1: Write the mock data**
+- [x] **Step 1: Write the mock data**
 
 ```ts
 // Mocked student directory data. No backend endpoint exists to list a unit's
@@ -1406,12 +1424,12 @@ export const mockStudents: MockStudent[] = [
 ];
 ```
 
-- [ ] **Step 2: Type/compile check**
+- [x] **Step 2: Type/compile check**
 
 Run: `cd frontend && npm run check`
 Expected: no new errors from this file.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add frontend/src/lib/mockStudents.ts
@@ -1428,7 +1446,7 @@ git commit -m "feat: add mocked student directory data"
 **Interfaces:**
 - Consumes: `token`, `user`, `activeUnit` stores; `mockStudents` (Task 16); `PageHeader` (Task 5), `SectionCard` (Task 6), `CountdownTimer` (Task 8), `StatDonut` (Task 9).
 
-- [ ] **Step 1: Write the page**
+- [x] **Step 1: Write the page**
 
 ```svelte
 <script lang="ts">
@@ -1490,16 +1508,16 @@ git commit -m "feat: add mocked student directory data"
 {/if}
 ```
 
-- [ ] **Step 2: Type/compile check**
+- [x] **Step 2: Type/compile check**
 
 Run: `cd frontend && npm run check`
 Expected: no new errors from this file.
 
-- [ ] **Step 3: Manual check**
+- [x] **Step 3: Manual check**
 
 Log in with a unit already set up. Expected: `/home` renders the header, the two action buttons, the donut stat with the mock count, and a live-updating countdown.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add frontend/src/routes/home/+page.svelte
