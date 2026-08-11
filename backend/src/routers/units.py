@@ -138,13 +138,13 @@ def get_unit_members(unit_id: int, db: Session = Depends(get_db), _staff: UnitMe
 
     return members
 
-@router.patch("/{unit_id}/members/{email}", response_model=UnitMembershipResponse)
-def set_member_role(unit_id: int, email: str, body: UnitRoleUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+@router.patch("/{unit_id}/members/{user_id}", response_model=UnitMembershipResponse)
+def set_member_role(unit_id: int, user_id: int, body: UnitRoleUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     caller_membership = db.query(UnitMembership).filter_by(user_id=current_user.id, unit_id=unit_id).first()
     if not caller_membership or caller_membership.role != "owner":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the unit owner can change member roles")
 
-    target_user = db.query(User).filter(User.email == email).first()
+    target_user = db.query(User).filter(User.id == user_id).first()
     if not target_user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
