@@ -1,5 +1,6 @@
-from sqlalchemy import JSON, Boolean, ForeignKey, String
+from sqlalchemy import JSON, Boolean, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from src.constants import DEFAULT_MAX_GROUP_SIZE
 from src.database import Base
 
 
@@ -34,6 +35,7 @@ class Unit(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     code: Mapped[str] = mapped_column(String, unique=True, index=True)
     name: Mapped[str | None] = mapped_column(String)
+    max_group_size: Mapped[int] = mapped_column(Integer, default=DEFAULT_MAX_GROUP_SIZE)
 
     users = relationship("User", secondary="user_units", back_populates="units", viewonly=True)
     unit_memberships = relationship("UnitMembership", back_populates="unit", cascade="all, delete-orphan")

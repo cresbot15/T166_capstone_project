@@ -27,11 +27,11 @@ def join_group(body: GroupJoin, db: Session = Depends(get_db), current_user: Use
     if any(g.unit_id == group.unit_id for g in current_user.groups):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User is already in a group for this unit")
 
-    if len(group.members) >= 5:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Group is full")
-
     if group.unit not in current_user.units:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is not enrolled in this unit")
+
+    if len(group.members) >= group.unit.max_group_size:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Group is full")
 
     db.add(GroupMembership(user_id=current_user.id, group_id=group.id))
     db.commit()

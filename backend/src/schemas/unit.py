@@ -1,9 +1,10 @@
 from typing import Literal
-from pydantic import BaseModel, EmailStr, field_validator
-from src.constants import TIME_SLOTS
+from pydantic import BaseModel, EmailStr, Field, field_validator
+from src.constants import DEFAULT_MAX_GROUP_SIZE, MAX_MAX_GROUP_SIZE, MIN_MAX_GROUP_SIZE, TIME_SLOTS
 
 class UnitCreate(BaseModel):
     name: str | None = None
+    max_group_size: int = Field(default=DEFAULT_MAX_GROUP_SIZE, ge=MIN_MAX_GROUP_SIZE, le=MAX_MAX_GROUP_SIZE)
 
 class UnitJoin(BaseModel):
     code: str
@@ -14,12 +15,14 @@ class UnitResponse(BaseModel):
     id: int
     code: str
     name: str | None = None
+    max_group_size: int
 
 class UnitPublicResponse(BaseModel):
     model_config = {"from_attributes": True}
 
     id: int
     name: str | None = None
+    max_group_size: int
 
 class UnitRoleUpdate(BaseModel):
     role: Literal["administrator", "student"]

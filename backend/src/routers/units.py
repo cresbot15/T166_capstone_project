@@ -30,7 +30,7 @@ def get_my_units(current_user: User = Depends(get_current_user)):
 
 @router.post("/create", response_model=UnitResponse, status_code=status.HTTP_201_CREATED)
 def create_unit(body: UnitCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    unit = Unit(code=generate_unit_code(db), name=body.name)
+    unit = Unit(code=generate_unit_code(db), name=body.name, max_group_size=body.max_group_size)
     db.add(unit)
     db.commit()
     db.refresh(unit)
