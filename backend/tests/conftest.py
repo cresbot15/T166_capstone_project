@@ -12,6 +12,7 @@ TEST_USER_LNAME = "User"
 TEST_USER_EMAIL = "user@test.com"
 TEST_USER_PASSWORD = "Password123"
 TEST_UNIT_NAME = "unit_name"
+TEST_MIN_GROUP_SIZE = 2
 TEST_MAX_GROUP_SIZE = 5
 
 # Create test client with an in-memory SQLite database
@@ -72,9 +73,10 @@ def auth_headers(client, make_user):
 
 @pytest.fixture()
 def create_unit(client):
-    def _create_unit(headers, name=TEST_UNIT_NAME, max_group_size=TEST_MAX_GROUP_SIZE):
+    def _create_unit(headers, name=TEST_UNIT_NAME, min_group_size=TEST_MIN_GROUP_SIZE, max_group_size=TEST_MAX_GROUP_SIZE):
         body = {
             "name": name,
+            "min_group_size": min_group_size,
             "max_group_size": max_group_size
         }
         r = client.post("/units/create", json=body, headers=headers)

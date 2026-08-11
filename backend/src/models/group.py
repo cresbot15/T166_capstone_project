@@ -42,4 +42,7 @@ class Group(Base):
 
     @property
     def status(self) -> str:
+        """A group is valid once it has enough members and they share a free slot."""
+        if len(self.members) < self.unit.min_group_size:
+            return "provisional"
         return "valid" if self.common_time_slots else "provisional"
