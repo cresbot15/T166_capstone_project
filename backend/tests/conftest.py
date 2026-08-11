@@ -7,6 +7,12 @@ from sqlalchemy.pool import StaticPool
 from src.database import Base, get_db
 from src.main import app
 
+TEST_USER_FNAME = "Test"
+TEST_USER_LNAME = "User"
+TEST_USER_EMAIL = "user@test.com"
+TEST_USER_PASSWORD = "Password123"
+TEST_UNIT_NAME = "unit_name"
+
 # Create test client with an in-memory SQLite database
 @pytest.fixture()
 def client():
@@ -35,10 +41,10 @@ def client():
 
 @pytest.fixture()
 def make_user(client):
-    def _make_user(email="user@test.com", password="password123"):
+    def _make_user(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD):
         body = {
-            "first_name": "Test",
-            "last_name": "User",
+            "first_name": TEST_USER_FNAME,
+            "last_name": TEST_USER_LNAME,
             "email": email,
             "password": password,
         }
@@ -50,7 +56,7 @@ def make_user(client):
 
 @pytest.fixture()
 def auth_headers(client, make_user):
-    def _auth_headers(email="user@test.com", password="password123"):
+    def _auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD):
         make_user(email=email, password=password)
         body = {
             "email": email,
@@ -65,7 +71,7 @@ def auth_headers(client, make_user):
 
 @pytest.fixture()
 def create_unit(client):
-    def _create_unit(headers, name="unit_name"):
+    def _create_unit(headers, name=TEST_UNIT_NAME):
         body = {
             "name": name
         }

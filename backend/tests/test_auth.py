@@ -1,7 +1,9 @@
-TEST_USER_FNAME = "Test"
-TEST_USER_LNAME = "User"
-TEST_USER_EMAIL = "user@test.com"
-TEST_USER_PASSWORD = "Password123"
+from tests.conftest import (
+    TEST_USER_EMAIL,
+    TEST_USER_FNAME,
+    TEST_USER_LNAME,
+    TEST_USER_PASSWORD,
+)
 
 def test_register_creates_user(client):
     response = client.post("/auth/register", json={

@@ -1,8 +1,8 @@
-TEST_USER_FNAME = "Test"
-TEST_USER_LNAME = "User"
-TEST_USER_EMAIL = "user@test.com"
-TEST_USER_PASSWORD = "Password123"
-TEST_UNIT_NAME = "unit_name"
+from tests.conftest import (
+    TEST_UNIT_NAME,
+    TEST_USER_EMAIL,
+    TEST_USER_PASSWORD,
+)
 
 def test_create_unit(client, auth_headers):
     headers = auth_headers(email=TEST_USER_EMAIL, password = TEST_USER_PASSWORD)
