@@ -10,7 +10,7 @@ def test_get_me(client, auth_headers):
 
     response = client.get("/users/me", headers=headers)
 
-    assert response.status_code == 200
+    assert response.status_code == 200, response.text
 
     response_body = response.json()
     assert response_body["first_name"] == TEST_USER_FNAME
@@ -19,7 +19,7 @@ def test_get_me(client, auth_headers):
 
 def test_get_me_unauthenticated(client):
     response = client.get("/users/me")
-    assert response.status_code == 401
+    assert response.status_code == 401, response.text
 
 def test_patch_me(client, auth_headers):
     headers = auth_headers()
@@ -32,10 +32,10 @@ def test_patch_me(client, auth_headers):
     }
 
     response_patch = client.patch("/users/me", headers=headers, json=request_body)
-    assert response_patch.status_code == 200
+    assert response_patch.status_code == 200, response_patch.text
 
     response_get = client.get("/users/me", headers=headers)
-    assert response_get.status_code == 200
+    assert response_get.status_code == 200, response_get.text
 
     response_body = response_get.json()
     assert response_body["first_name"] == first_name_patched
@@ -51,14 +51,14 @@ def test_patch_me_unauthenticated(client):
         "last_name": last_name
     }
     response = client.patch("/users/me", json=request_body)
-    assert response.status_code == 401
+    assert response.status_code == 401, response.text
 
 def test_patch_me_empty_body(client, auth_headers):
     headers = auth_headers()
     request_body = {}
 
     response = client.patch("/users/me", headers=headers, json=request_body)
-    assert response.status_code == 200
+    assert response.status_code == 200, response.text
 
     response_body = response.json()
     assert response_body["first_name"] == TEST_USER_FNAME
@@ -73,7 +73,7 @@ def test_patch_me_explicit_null(client,auth_headers):
     }
 
     response = client.patch("/users/me", headers=headers, json=request_body)
-    assert response.status_code == 200
+    assert response.status_code == 200, response.text
 
     response_body = response.json()
     assert response_body["first_name"] == TEST_USER_FNAME
@@ -90,7 +90,7 @@ def test_me_partial(client, auth_headers):
     }
 
     response = client.patch("/users/me", headers=headers, json=request_body)
-    assert response.status_code == 200
+    assert response.status_code == 200, response.text
 
     response_body = response.json()
     assert response_body["first_name"] == first_name
@@ -105,4 +105,4 @@ def test_invalid_type(client,auth_headers):
     }
 
     response = client.patch("/users/me", headers=headers, json=request_body)
-    assert response.status_code == 422
+    assert response.status_code == 422, response.text
