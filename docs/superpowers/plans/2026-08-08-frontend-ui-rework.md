@@ -25,11 +25,11 @@
 
 _Last updated: 2026-08-17._
 
-**Done, committed:** Tasks 1-18 (theme, stores, `api.ts` incl. the `getGroups` addition, all 7 components, navbar, Sign In, Register, Join/Create Unit, Unit Setup, Explore), plus **Task 16 and Task 17** (mock data + Home dashboard), which were pulled forward out of plan order at the user's request to get a demoable Home screen quickly. All checked off below. The full sign-up flow (Register → Join/Create Unit → Unit Setup → Home) is now wired end-to-end. Task 18 was extended beyond its original script to add a real (non-mocked) group-browsing/join section — see the scope note under Task 18.
+**Done, committed:** Tasks 1-19 (theme, stores, `api.ts` incl. the `getGroups` addition, all 7 components, navbar, Sign In, Register, Join/Create Unit, Unit Setup, Explore, Group), plus **Task 16 and Task 17** (mock data + Home dashboard), which were pulled forward out of plan order at the user's request to get a demoable Home screen quickly. All checked off below. The full sign-up flow (Register → Join/Create Unit → Unit Setup → Home) is now wired end-to-end. Task 18 was extended beyond its original script to add a real (non-mocked) group-browsing/join section — see the scope note under Task 18. Task 19 got a small template-only addition (a "Browse Public Groups" link to /explore) — see its scope note.
 
-**Not started, resume here: Task 19** (rewrite `/group`). Then 20 (Profile rewrite — these still have the pre-existing `npm run check` errors described throughout the plan), 21 (final verification).
+**Not started, resume here: Task 20** (rewrite `/profile`, the last route rewrite). Then 21 (final verification — the last task in the plan).
 
-**Known, expected `npm run check` state as of Task 18:** 19 errors, all in `group`/`profile` (unrewritten routes) — the `+layout.svelte` `/explore` route-typing error is now gone since Task 18 created that route folder. Confirmed by running `npm run check` after Task 18's commit.
+**Known, expected `npm run check` state as of Task 19:** 10 errors, all in `/profile` (the only unrewritten route left). Confirmed by running `npm run check` after Task 19's commit.
 
 **Note for Task 19/20:** while investigating Task 18, confirmed the backend has no unit-members/roster-listing endpoint at all (only per-user `GET /units/{id}/me`), which is why Explore's student list must stay mocked. But `GET /groups/{unit_id}` is real and now has an `api.getGroups` client method — worth checking whether Task 19's Group-page rewrite or Task 20's Profile rewrite can make use of it too, since neither was written with it in mind.
 
@@ -1674,7 +1674,9 @@ git commit -m "feat: add explore students & groups page (mocked data)"
 **Interfaces:**
 - Consumes: `api.createGroup`, `api.joinGroup`, `api.getMyGroups`, `api.getRecommendedTimes`, `api.leaveGroup` (`$lib/api`); `token`, `activeUnit` stores; `formatSlot` (`$lib/timeslots`); `PageHeader` (Task 5), `SectionCard` (Task 6).
 
-- [ ] **Step 1: Rewrite the page**
+**Scope note (small addition, decided 2026-08-17):** added a "Browse Public Groups" link to `/explore` in the empty-state card (alongside Create/Join), per user request — no script changes, template-only.
+
+- [x] **Step 1: Rewrite the page**
 
 Replace the full contents of `frontend/src/routes/group/+page.svelte` with:
 
@@ -1877,16 +1879,16 @@ Replace the full contents of `frontend/src/routes/group/+page.svelte` with:
 </div>
 ```
 
-- [ ] **Step 2: Type/compile check**
+- [x] **Step 2: Type/compile check**
 
 Run: `cd frontend && npm run check`
 Expected: this file's prior errors are gone; remaining errors only in `/profile`.
 
-- [ ] **Step 3: Manual check**
+- [x] **Step 3: Manual check**
 
-As a fresh unit member with no group: create a group (private), confirm the invite code and "Copy" button work, confirm status shows "Provisional". From a second test account in the same unit, join using that code; confirm both accounts now see updated member lists and matching/mismatched availability drives the Valid/Provisional badge correctly. Leave the group from one account and confirm it's removed.
+As a fresh unit member with no group: create a group (private), confirm the invite code and "Copy" button work, confirm status shows "Provisional". From a second test account in the same unit, join using that code; confirm both accounts now see updated member lists and matching/mismatched availability drives the Valid/Provisional badge correctly. Leave the group from one account and confirm it's removed. Verified end-to-end via curl (two real test accounts): create (private) → status `valid` solo → join → `provisional` with empty `common_time_slots`/`recommended-times` → one account's time preferences updated to overlap → status flips to `valid` with `common_time_slots: ["mondayMorning"]` → leave both → group auto-deleted (0 members) → recreate. All matches the page's logic exactly.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add frontend/src/routes/group/+page.svelte
