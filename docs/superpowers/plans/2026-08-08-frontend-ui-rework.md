@@ -25,11 +25,13 @@
 
 _Last updated: 2026-08-17._
 
-**Done, committed:** Tasks 1-15 (theme, stores, `api.ts`, all 7 components, navbar, Sign In, Register, Join/Create Unit, Unit Setup), plus **Task 16 and Task 17** (mock data + Home dashboard), which were pulled forward out of plan order at the user's request to get a demoable Home screen quickly. All checked off below. The full sign-up flow (Register → Join/Create Unit → Unit Setup → Home) is now wired end-to-end.
+**Done, committed:** Tasks 1-18 (theme, stores, `api.ts` incl. the `getGroups` addition, all 7 components, navbar, Sign In, Register, Join/Create Unit, Unit Setup, Explore), plus **Task 16 and Task 17** (mock data + Home dashboard), which were pulled forward out of plan order at the user's request to get a demoable Home screen quickly. All checked off below. The full sign-up flow (Register → Join/Create Unit → Unit Setup → Home) is now wired end-to-end. Task 18 was extended beyond its original script to add a real (non-mocked) group-browsing/join section — see the scope note under Task 18.
 
-**Not started, resume here: Task 18** (Explore Students & Groups page). Then 19-20 (Group/Profile rewrites — these still have the pre-existing `npm run check` errors described throughout the plan), 21 (final verification).
+**Not started, resume here: Task 19** (rewrite `/group`). Then 20 (Profile rewrite — these still have the pre-existing `npm run check` errors described throughout the plan), 21 (final verification).
 
-**Known, expected `npm run check` state as of Task 13:** 20 errors — 20 in `group`/`profile` (unrewritten routes) + 1 in `+layout.svelte` (`/explore` route-typing, resolves once Task 18 creates that route folder). Confirmed by running `npm run check` after Task 13's commit.
+**Known, expected `npm run check` state as of Task 18:** 19 errors, all in `group`/`profile` (unrewritten routes) — the `+layout.svelte` `/explore` route-typing error is now gone since Task 18 created that route folder. Confirmed by running `npm run check` after Task 18's commit.
+
+**Note for Task 19/20:** while investigating Task 18, confirmed the backend has no unit-members/roster-listing endpoint at all (only per-user `GET /units/{id}/me`), which is why Explore's student list must stay mocked. But `GET /groups/{unit_id}` is real and now has an `api.getGroups` client method — worth checking whether Task 19's Group-page rewrite or Task 20's Profile rewrite can make use of it too, since neither was written with it in mind.
 
 **Demo environment set up for this session** (not part of the plan's own tasks, but needed to show working screens):
 - Backend: `cd backend && JWT_SECRET="local-dev-demo-secret" .venv/bin/fastapi dev src/main.py` (venv already created from a prior session; `uv` isn't installed on this machine).
@@ -1528,11 +1530,14 @@ git commit -m "feat: add home dashboard"
 
 **Files:**
 - Create: `frontend/src/routes/explore/+page.svelte`
+- Modify: `frontend/src/lib/api.ts` (adds `getGroups`, not in the original Task 3 script)
 
 **Interfaces:**
 - Consumes: `api.getMyUnitProfile`, `api.setMemberRole` (`$lib/api`); `token`, `activeUnit` stores; `mockStudents`, `MockStudent` (Task 16); `PageHeader` (Task 5), `StatusPill` (Task 4).
 
-- [ ] **Step 1: Write the page**
+**Scope note (deviation from the original script below, decided 2026-08-17):** while implementing this task, discovered `GET /groups/{unit_id}` (public groups + own groups, filtered by role) is a real, working backend endpoint that Task 3's `api.ts` never wired up — the design spec's Non-goals section only ruled out a *students* listing endpoint, not groups. Added `api.getGroups(unitId)` to `api.ts` and extended this page with a real "Public Groups" section (not in the script below): fetches `getGroups` + `getMyGroups` on mount, lets students join public groups via the existing real `api.joinGroup`, and shows a disabled Join button with a tooltip ("You're already enrolled in a different group for this unit") for any group you can't join because you're already in one for this unit. The student directory below is still fully mocked as originally planned — only the groups half was extended.
+
+- [x] **Step 1: Write the page**
 
 ```svelte
 <script lang="ts">
@@ -1643,16 +1648,16 @@ git commit -m "feat: add home dashboard"
 </div>
 ```
 
-- [ ] **Step 2: Type/compile check**
+- [x] **Step 2: Type/compile check**
 
 Run: `cd frontend && npm run check`
 Expected: no new errors from this file.
 
-- [ ] **Step 3: Manual check**
+- [x] **Step 3: Manual check**
 
-Visit `/explore`. Expected: search box filters the mock list by name, the degree select filters by degree, each row shows a colored `StatusPill`. If logged in as a unit owner, a role `<select>` appears per row (changing it will 404/error against real emails unless you seed a matching real member — that's expected for mock data; confirm the *request* fires correctly via the Network tab, not that it succeeds).
+Visit `/explore`. Expected: search box filters the mock list by name, the degree select filters by degree, each row shows a colored `StatusPill`. If logged in as a unit owner, a role `<select>` appears per row (changing it will 404/error against real emails unless you seed a matching real member — that's expected for mock data; confirm the *request* fires correctly via the Network tab, not that it succeeds). Additionally (scope extension): the Public Groups section loads real groups via `GET /groups/{unit_id}`; joining via `api.joinGroup` was verified end-to-end via curl (two real accounts, one created a public group, the other joined it, group status flipped `valid` → `provisional` correctly, and a second join attempt correctly 409s — matching the disabled/tooltip UI state).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add frontend/src/routes/explore/+page.svelte
