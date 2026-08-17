@@ -25,9 +25,9 @@
 
 _Last updated: 2026-08-17._
 
-**Done, committed:** Tasks 1-14 (theme, stores, `api.ts`, all 7 components, navbar, Sign In, Register, Join/Create Unit), plus **Task 16 and Task 17** (mock data + Home dashboard), which were pulled forward out of plan order at the user's request to get a demoable Home screen quickly. All checked off below.
+**Done, committed:** Tasks 1-15 (theme, stores, `api.ts`, all 7 components, navbar, Sign In, Register, Join/Create Unit, Unit Setup), plus **Task 16 and Task 17** (mock data + Home dashboard), which were pulled forward out of plan order at the user's request to get a demoable Home screen quickly. All checked off below. The full sign-up flow (Register → Join/Create Unit → Unit Setup → Home) is now wired end-to-end.
 
-**Not started, resume here: Task 15** (Unit Setup onboarding page). Then 18 (Explore), 19-20 (Group/Profile rewrites — these still have the pre-existing `npm run check` errors described throughout the plan), 21 (final verification).
+**Not started, resume here: Task 18** (Explore Students & Groups page). Then 19-20 (Group/Profile rewrites — these still have the pre-existing `npm run check` errors described throughout the plan), 21 (final verification).
 
 **Known, expected `npm run check` state as of Task 13:** 20 errors — 20 in `group`/`profile` (unrewritten routes) + 1 in `+layout.svelte` (`/explore` route-typing, resolves once Task 18 creates that route folder). Confirmed by running `npm run check` after Task 13's commit.
 
@@ -1220,7 +1220,7 @@ git commit -m "feat: add join/create unit onboarding page"
 **Interfaces:**
 - Consumes: `api.updateMyUnitProfile` (`$lib/api`); `token`, `activeUnit` stores; `TimeGrid` (Task 7).
 
-- [ ] **Step 1: Write the page**
+- [x] **Step 1: Write the page**
 
 ```svelte
 <script lang="ts">
@@ -1335,16 +1335,16 @@ git commit -m "feat: add join/create unit onboarding page"
 </div>
 ```
 
-- [ ] **Step 2: Type/compile check**
+- [x] **Step 2: Type/compile check**
 
 Run: `cd frontend && npm run check`
 Expected: no new errors from this file.
 
-- [ ] **Step 3: Manual check**
+- [x] **Step 3: Manual check**
 
 Complete the form after joining/creating a unit. Expected: redirected to `/home` (404 for now — built in Task 17); `GET /units/{id}/me` (via `/docs`) shows the saved delivery mode/skills/time preferences.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add frontend/src/routes/onboarding/setup/+page.svelte
