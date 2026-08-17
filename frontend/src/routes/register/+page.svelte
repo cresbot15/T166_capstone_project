@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { api } from '$lib/api';
-	import { token } from '$lib/stores';
+	import { token, user } from '$lib/stores';
 
 	let firstName = $state('');
 	let lastName = $state('');
@@ -23,6 +23,7 @@
 			await api.register({ first_name: firstName, last_name: lastName, email, password });
 			const loginData = await api.login(email, password);
 			token.set(loginData.access_token);
+			user.set(await api.getMe());
 			goto('/onboarding/unit');
 		} catch (e: unknown) {
 			error = e instanceof Error ? e.message : 'Registration failed';

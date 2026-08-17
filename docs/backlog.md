@@ -5,19 +5,25 @@ Ideas raised during the frontend UI rework (`unit-owned-groups-ui` branch,
 backend design/implementation work and were deliberately deferred rather than
 folded into that rework. For whoever picks up backend work next.
 
-## 1. Switch availability grid from 2-hour blocks to 1-hour sections
+## 1. Switch availability grid from named periods to hourly sections
 
 **Current state:** `backend/src/constants.py` defines a global `TIME_SLOTS`
 frozenset: 5 days × 3 periods (`Morning`/`Afternoon`/`Evening`) = 15 slots,
-e.g. `mondayMorning`. The frontend's `frontend/src/lib/timeslots.ts` mirrors
-this with `DAYS`/`PERIODS` constants.
+e.g. `mondayMorning`. These are opaque labels only — nowhere in the codebase
+(backend, frontend, or the original design spec) is `Morning`/`Afternoon`/
+`Evening` tied to actual clock hours or a fixed duration like "2-hour
+blocks." The frontend's `frontend/src/lib/timeslots.ts` mirrors this with
+`DAYS`/`PERIODS` constants.
 
 **What would change:** both constant lists would need more entries (e.g.
 hourly labels like `9am`, `10am`, ... instead of `Morning`/`Afternoon`/
-`Evening`). Nothing else in the backend hardcodes "3 periods" — slot strings
-are stored as an opaque JSON list (`UnitProfile.time_preferences`) and the
-group-matching logic (`GET /groups/{unit_id}/{group_id}/recommended-times`)
-just intersects sets of strings, so it's agnostic to how many slots exist.
+`Evening`) — this requires picking a concrete hour range first (e.g. 8am-8pm
+hourly = 12 slots/day × 5 days = 60 slots, vs. today's 15; a narrower/wider
+range changes the count). Nothing else in the backend hardcodes "3 periods"
+— slot strings are stored as an opaque JSON list
+(`UnitProfile.time_preferences`) and the group-matching logic
+(`GET /groups/{unit_id}/{group_id}/recommended-times`) just intersects sets
+of strings, so it's agnostic to how many slots exist.
 
 **Risk:** low — this is a small, mechanical change to two files
 (`backend/src/constants.py`, `frontend/src/lib/timeslots.ts`), not a
@@ -71,3 +77,40 @@ real percentage instead of using the placeholder.
 
 **Risk:** low — a single new column plus exposing it on the existing
 response schema. No validation complexity like the time-slot items above.
+
+## 4. Real "who's in this unit" endpoint for Explore
+
+**Current state:** the Explore page's student directory (`/explore`) is
+fully mocked (`frontend/src/lib/mockStudents.ts`, ~5 hardcoded rows), per
+the original design spec's non-goals ("no endpoint exists to list a unit's
+students with degree/skills/group-status"). It's not scoped to the active
+unit at all — the same 5 mock rows show regardless of which unit you're
+viewing, which reads as broken once you actually expect per-unit
+filtering. The desired real behavior: show only users with a real
+`UnitMembership` in the active unit (a user can belong to multiple units,
+which the data model already supports fine — `UnitMembership` is a
+plain many-to-many join with no such restriction).
+
+**What this would need:**
+- A new endpoint, e.g. `GET /units/{unit_id}/members`, joining
+  `UnitMembership` (for who + role) with `UnitProfile` (for `skills`,
+  `delivery_mode`, `is_new_student`) for every member of that unit.
+- **`degree` has no backend field anywhere** (not on `User`, not on
+  `UnitProfile`) — the mock data invented it. Decide: drop it from the real
+  version, or add a real column (small schema change, similar in shape to
+  item 3 above).
+- **`status` (complete/incomplete/pending in the mock data) has no obvious
+  real equivalent** — needs a concrete definition before it can be driven
+  by real data, e.g. "unit-setup profile complete" (has delivery
+  mode/skills/time preferences filled in) vs. "already in a group for this
+  unit" vs. something else. Whichever is picked determines what the new
+  endpoint needs to compute/join against (e.g. group membership requires
+  also joining `Group`/`GroupMembership` scoped to the unit).
+- Frontend: replace `mockStudents` usage in `/explore` with a new
+  `api.getUnitMembers(unitId)` call; `StatusPill` stays as-is once `status`
+  has a real definition to map onto its three states.
+
+**Risk:** low-to-moderate — the membership+profile join is straightforward
+(no new tables needed beyond maybe a `degree` column), but the `status`
+definition is a product decision, not just an implementation detail, so
+it's worth confirming that before writing the endpoint.
