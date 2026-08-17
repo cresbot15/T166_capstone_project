@@ -1905,7 +1905,9 @@ git commit -m "feat: rewrite group page for unit-scoped create/join/view"
 **Interfaces:**
 - Consumes: `api.getMyUnitProfile`, `api.updateMyUnitProfile`, `api.getMyGroups` (`$lib/api`); `token`, `user`, `activeUnit` stores; `TimeGrid` (Task 7), `PageHeader` (Task 5), `SectionCard` (Task 6).
 
-- [ ] **Step 1: Rewrite the page**
+**Scope note (deviation, decided 2026-08-17):** the header subtitle uses `$user?.email` instead of the script below's `Student ID: ${$user?.id}` — confirmed via `backend/src/models/user.py` and `schemas/user.py` that no `student_id` field exists anywhere in the backend (matches the design spec's own non-goals list), so the original subtitle would have mislabeled the raw DB primary key as a student ID.
+
+- [x] **Step 1: Rewrite the page**
 
 Replace the full contents of `frontend/src/routes/profile/+page.svelte` with:
 
@@ -2089,16 +2091,17 @@ Replace the full contents of `frontend/src/routes/profile/+page.svelte` with:
 </div>
 ```
 
-- [ ] **Step 2: Type/compile check**
+- [x] **Step 2: Type/compile check**
 
 Run: `cd frontend && npm run check`
 Expected: **zero errors** — this was the last file with pre-existing errors from Task 3's model change.
+Confirmed: `COMPLETED 315 FILES 0 ERRORS 0 WARNINGS 0 FILES_WITH_PROBLEMS`.
 
-- [ ] **Step 3: Manual check**
+- [x] **Step 3: Manual check**
 
-Visit `/profile`. Expected: schedule grid (read-only), profile details, "Your Team" summary, and header Edit Profile/Logout buttons all render. Click "Edit Profile", change availability/skills, save, confirm the read-only view updates.
+Visit `/profile`. Expected: schedule grid (read-only), profile details, "Your Team" summary, and header Edit Profile/Logout buttons all render. Click "Edit Profile", change availability/skills, save, confirm the read-only view updates. Verified via curl against the real backend: `getMyUnitProfile` (initial load), `updateMyUnitProfile` (save, changed delivery mode/skills/time preferences and read them back), `getMyGroups` (drives "Your Team" — showed the real 2-member provisional group from Task 19's testing), and `getMe` (welcome header + email subtitle).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add frontend/src/routes/profile/+page.svelte
