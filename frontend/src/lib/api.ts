@@ -102,6 +102,7 @@ export const api = {
 		req<GroupResponse>('POST', '/groups/create', { unit_id: unitId, is_public: isPublic }),
 	joinGroup: (preferenceCode: string) =>
 		req<GroupJoinResponse>('POST', '/groups/join', { preference_code: preferenceCode }),
+	getGroups: (unitId: number) => req<GroupResponse[]>('GET', `/groups/${unitId}`),
 	getMyGroups: () => req<GroupResponse[]>('GET', '/groups/my-groups'),
 	getRecommendedTimes: (unitId: number, groupId: number) =>
 		req<string[]>('GET', `/groups/${unitId}/${groupId}/recommended-times`),
