@@ -23,21 +23,19 @@
 
 ## Current Progress (resume here)
 
-_Last updated: 2026-08-10._
+_Last updated: 2026-08-17._
 
-**Done, committed:** Tasks 1-12 (theme, stores, `api.ts`, all 7 components, navbar, Sign In), plus **Task 16 and Task 17** (mock data + Home dashboard), which were pulled forward out of plan order at the user's request to get a demoable Home screen quickly. All checked off below.
+**Done, committed:** Tasks 1-13 (theme, stores, `api.ts`, all 7 components, navbar, Sign In, Register), plus **Task 16 and Task 17** (mock data + Home dashboard), which were pulled forward out of plan order at the user's request to get a demoable Home screen quickly. All checked off below.
 
-**In progress: Task 13 (Register rewrite).** The new script block (see Task 13, Step 1) was shown and approved in chat, but **not yet written to disk** — `frontend/src/routes/register/+page.svelte` is still the old pre-rewrite version on disk right now. The template piece (Step 1's second half) has not been shown yet. Resume by re-showing/writing the script block, then the template, per Task 13 below.
+**Not started, resume here: Task 14** (Join/Create Unit onboarding page). Then Task 15 (Unit Setup onboarding), 18 (Explore), 19-20 (Group/Profile rewrites — these still have the pre-existing `npm run check` errors described throughout the plan), 21 (final verification).
 
-**Not started:** Tasks 14, 15 (onboarding pages), 18 (Explore), 19-20 (Group/Profile rewrites — these still have the 20 pre-existing `npm run check` errors described throughout the plan), 21 (final verification).
-
-**Known, expected `npm run check` state as of Task 17:** 21 errors — 20 in `group`/`profile`/`register` (unrewritten routes) + 1 in `+layout.svelte` (`/explore` route-typing, resolves once Task 18 creates that route folder).
+**Known, expected `npm run check` state as of Task 13:** 20 errors — 20 in `group`/`profile` (unrewritten routes) + 1 in `+layout.svelte` (`/explore` route-typing, resolves once Task 18 creates that route folder). Confirmed by running `npm run check` after Task 13's commit.
 
 **Demo environment set up for this session** (not part of the plan's own tasks, but needed to show working screens):
-- Backend: `cd backend && python3 -m venv .venv && source .venv/bin/activate && pip install "bcrypt>=5.0.0" "fastapi[standard]>=0.135.3" "httpx>=0.28.1" "python-jose>=3.5.0" "sqlalchemy>=2.0.49"` (one-time; `uv` isn't installed on this machine, so a plain venv was used instead of the README's `uv sync`). Then run: `JWT_SECRET="local-dev-demo-secret" .venv/bin/fastapi dev src/main.py`. `.venv` and `app.db` are already covered by `backend/.gitignore`.
+- Backend: `cd backend && JWT_SECRET="local-dev-demo-secret" .venv/bin/fastapi dev src/main.py` (venv already created from a prior session; `uv` isn't installed on this machine).
 - Frontend: `cd frontend && npm run dev`.
-- Both dev servers are **currently stopped** — restart them with the commands above when resuming.
-- A demo account + unit were seeded directly via API calls (not through the UI, since onboarding pages don't exist yet): email `demo@teamup-demo.example.com`, password `demo1234`, unit "IFB398 Capstone". This data lives in the local `backend/app.db` SQLite file (gitignored) — if that file is deleted/recreated, the demo account needs reseeding (same `register` → `login` → `units/create` calls, in that order).
+- Both dev servers were started again this session (backend pid 11741, frontend pid 11745 as of 2026-08-17) to verify Task 13 — check if still running before restarting.
+- A demo account + unit were seeded directly via API calls (not through the UI, since onboarding pages don't exist yet): email `demo@teamup-demo.example.com`, password `demo1234`, unit "IFB398 Capstone". This data lives in the local `backend/app.db` SQLite file (gitignored) — if that file is deleted/recreated, the demo account needs reseeding (same `register` → `login` → `units/create` calls, in that order). A second test account `test-register-check@example.com` / `testpass123` was also created this session while verifying Task 13.
 
 ---
 
@@ -972,7 +970,7 @@ git commit -m "feat: restyle sign-in and route by unit membership"
 **Interfaces:**
 - Consumes: `api.register`, `api.login` (`$lib/api`); `token` store.
 
-- [ ] **Step 1: Rewrite the page**
+- [x] **Step 1: Rewrite the page**
 
 Replace the full contents of `frontend/src/routes/register/+page.svelte` with:
 
@@ -1052,16 +1050,16 @@ Replace the full contents of `frontend/src/routes/register/+page.svelte` with:
 </div>
 ```
 
-- [ ] **Step 2: Type/compile check**
+- [x] **Step 2: Type/compile check**
 
 Run: `cd frontend && npm run check`
 Expected: this file's prior errors are gone; remaining errors only in `/profile`, `/group`.
 
-- [ ] **Step 3: Manual check**
+- [x] **Step 3: Manual check**
 
 Register a brand-new account in the browser. Expected: redirected to `/onboarding/unit` (404 for now — built next task).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add frontend/src/routes/register/+page.svelte
