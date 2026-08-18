@@ -98,10 +98,6 @@ def test_create_unit_codes_are_unique(client, auth_headers, create_unit):
 
     assert first["code"] != second["code"]
 
-def _enrol(client, headers, code):
-    response = client.post("/units/join", headers=headers, json={"code": code})
-    assert response.status_code == 200, response.text
-
 def _student_count(client, headers, unit_id):
     response = client.get(f"/units/{unit_id}/student_count", headers=headers)
     assert response.status_code == 200, response.text
@@ -135,22 +131,22 @@ def test_unit_member_count_excludes_the_owner(client, auth_headers, create_unit)
 
     assert _student_count(client, owner_headers, unit["id"]) == 0
 
-def test_unit_member_count_counts_enrolled_students(client, auth_headers, create_unit):
+def test_unit_member_count_counts_enrolled_students(client, auth_headers, create_unit, enrol_user):
     owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
     unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME)
 
     for i in range(3):
-        _enrol(client, auth_headers(email=f"student{i}@test.com", password=TEST_USER_PASSWORD), unit["code"])
+        enrol_user(unit["code"], email=f"student{i}@test.com")
 
     assert _student_count(client, owner_headers, unit["id"]) == 3
 
-def test_unit_member_count_excludes_administrators(client, auth_headers, create_unit):
+def test_unit_member_count_excludes_administrators(client, auth_headers, create_unit, enrol_user):
     owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
     unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME)
 
     promoted_email = "promoted@test.com"
-    _enrol(client, auth_headers(email=promoted_email, password=TEST_USER_PASSWORD), unit["code"])
-    _enrol(client, auth_headers(email="student@test.com", password=TEST_USER_PASSWORD), unit["code"])
+    enrol_user(unit["code"], email=promoted_email)
+    enrol_user(unit["code"], email="student@test.com")
 
     assert _student_count(client, owner_headers, unit["id"]) == 2
 
@@ -167,16 +163,16 @@ def test_unit_member_count_excludes_administrators(client, auth_headers, create_
 
     assert _student_count(client, owner_headers, unit["id"]) == 1
 
-def test_unit_member_count_is_scoped_to_unit(client, auth_headers, create_unit):
+def test_unit_member_count_is_scoped_to_unit(client, auth_headers, create_unit, enrol_user):
     owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
     unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME)
     other_unit = create_unit(headers=owner_headers, name="other_unit")
 
     for i in range(2):
-        _enrol(client, auth_headers(email=f"student{i}@test.com", password=TEST_USER_PASSWORD), unit["code"])
+        enrol_user(unit["code"], email=f"student{i}@test.com")
 
     for i in range(4):
-        _enrol(client, auth_headers(email=f"other_student{i}@test.com", password=TEST_USER_PASSWORD), other_unit["code"])
+        enrol_user(other_unit["code"], email=f"other_student{i}@test.com")
 
     assert _student_count(client, owner_headers, unit["id"]) == 2
     assert _student_count(client, owner_headers, other_unit["id"]) == 4

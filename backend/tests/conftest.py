@@ -84,3 +84,34 @@ def create_unit(client):
         return r.json()
 
     return _create_unit
+
+@pytest.fixture()
+def join_unit(client):
+    def _join_unit(headers, code):
+        r = client.post("/units/join", json={"code": code}, headers=headers)
+        assert r.status_code == 200, r.text
+        return r.json()
+
+    return _join_unit
+
+@pytest.fixture()
+def enrol_user(auth_headers, join_unit):
+    def _enrol_user(code, email, password=TEST_USER_PASSWORD):
+        headers = auth_headers(email=email, password=password)
+        join_unit(headers, code)
+        return headers
+
+    return _enrol_user
+
+@pytest.fixture()
+def create_group(client):
+    def _create_group(headers, unit_id, is_public=False):
+        body = {
+            "unit_id": unit_id,
+            "is_public": is_public
+        }
+        r = client.post("/groups/create", json=body, headers=headers)
+        assert r.status_code == 200, r.text
+        return r.json()
+
+    return _create_group
