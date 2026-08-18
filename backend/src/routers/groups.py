@@ -80,6 +80,26 @@ def get_groups(unit_id: int, db: Session = Depends(get_db), current_user: User =
 
     return [GroupResponse.model_validate(g) for g in query.all()]
 
+@router.get("/{unit_id}/joinable", response_model=list[GroupResponse])
+def get_joinable_groups(unit_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Groups in this unit the caller could join: public, not full, and not their own."""
+    unit = db.query(Unit).filter(Unit.id == unit_id).first()
+    if not unit:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unit not found")
+
+    membership = db.query(UnitMembership).filter_by(user_id=current_user.id, unit_id=unit_id).first()
+    if not membership:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enrolled in this unit")
+
+    own_group_ids = {g.id for g in current_user.groups if g.unit_id == unit_id}
+    groups = db.query(Group).filter(Group.unit_id == unit_id, Group.is_public == True).all()
+
+    return [
+        GroupResponse.model_validate(g)
+        for g in groups
+        if g.id not in own_group_ids and len(g.members) < unit.max_group_size
+    ]
+
 @router.get("/{unit_id}/{group_id}/recommended-times", response_model=list[str])
 def get_recommended_times(unit_id: int, group_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     group = _group_in_unit_or_404(db, unit_id, group_id)
