@@ -32,14 +32,6 @@ class UnitResponse(BaseModel):
     min_group_size: int
     max_group_size: int
 
-class UnitPublicResponse(BaseModel):
-    model_config = {"from_attributes": True}
-
-    id: int
-    name: str | None = None
-    min_group_size: int
-    max_group_size: int
-
 class UnitRoleUpdate(BaseModel):
     role: Literal["administrator", "student"]
 

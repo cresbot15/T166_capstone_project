@@ -98,20 +98,6 @@ def test_create_unit_codes_are_unique(client, auth_headers, create_unit):
 
     assert first["code"] != second["code"]
 
-def test_list_units_does_not_expose_code(client, auth_headers, create_unit):
-    headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
-    create_unit(headers=headers, name=TEST_UNIT_NAME)
-
-    response = client.get("/units/", headers=headers)
-    assert response.status_code == 200
-
-    response_body = response.json()
-    assert len(response_body) == 1
-    assert "code" not in response_body[0]
-    assert response_body[0]["name"] == TEST_UNIT_NAME
-    assert response_body[0]["min_group_size"] == TEST_MIN_GROUP_SIZE
-    assert response_body[0]["max_group_size"] == TEST_MAX_GROUP_SIZE
-
 def _enrol(client, headers, code):
     response = client.post("/units/join", headers=headers, json={"code": code})
     assert response.status_code == 200, response.text

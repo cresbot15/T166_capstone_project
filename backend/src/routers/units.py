@@ -8,7 +8,6 @@ from src.schemas.unit import (
     UnitCreate,
     UnitJoin,
     UnitResponse,
-    UnitPublicResponse,
     UnitRoleUpdate,
     UnitMembershipResponse,
     UnitMemberResponse,
@@ -19,10 +18,6 @@ from src.services.auth import get_current_user, require_unit_staff
 from src.services.codes import generate_unit_code
 
 router = APIRouter()
-
-@router.get("/", response_model=list[UnitPublicResponse])
-def get_units(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    return db.query(Unit).all()
 
 @router.get("/me", response_model=list[UnitResponse])
 def get_my_units(current_user: User = Depends(get_current_user)):
