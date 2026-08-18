@@ -165,6 +165,19 @@ def set_member_role(unit_id: int, user_id: int, body: UnitRoleUpdate, db: Sessio
     db.refresh(membership)
     return membership
 
+@router.get("/{unit_id}/student_count")
+def get_student_count(unit_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if not db.query(Unit).filter(Unit.id == unit_id).first():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unit not found")
+
+    caller_membership = db.query(UnitMembership).filter_by(user_id=current_user.id, unit_id=unit_id).first()
+    if not caller_membership:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is not enrolled in this unit")
+
+    student_count = db.query(UnitMembership).filter_by(unit_id=unit_id, role="student").count()
+
+    return {"student_count": student_count}
+
 @router.get("/{unit_id}/export/students")
 def export_unit_students(unit_id: int, db: Session = Depends(get_db), curent_user: User = Depends(get_current_user)):
     pass

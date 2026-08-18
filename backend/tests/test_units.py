@@ -111,3 +111,86 @@ def test_list_units_does_not_expose_code(client, auth_headers, create_unit):
     assert response_body[0]["name"] == TEST_UNIT_NAME
     assert response_body[0]["min_group_size"] == TEST_MIN_GROUP_SIZE
     assert response_body[0]["max_group_size"] == TEST_MAX_GROUP_SIZE
+
+def _enrol(client, headers, code):
+    response = client.post("/units/join", headers=headers, json={"code": code})
+    assert response.status_code == 200, response.text
+
+def _student_count(client, headers, unit_id):
+    response = client.get(f"/units/{unit_id}/student_count", headers=headers)
+    assert response.status_code == 200, response.text
+    return response.json()["student_count"]
+
+def test_unit_member_count_unit_nonexistent(client, auth_headers):
+    headers = auth_headers()
+
+    response = client.get("/units/0/student_count", headers=headers)
+    assert response.status_code == 404, response.text
+
+def test_unit_member_count_requires_enrolment(client, auth_headers, create_unit):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME)
+
+    outsider_headers = auth_headers(email="outsider@test.com", password=TEST_USER_PASSWORD)
+
+    response = client.get(f"/units/{unit['id']}/student_count", headers=outsider_headers)
+    assert response.status_code == 403, response.text
+
+def test_unit_member_count_unauthenticated(client, auth_headers, create_unit):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME)
+
+    response = client.get(f"/units/{unit['id']}/student_count")
+    assert response.status_code == 401, response.text
+
+def test_unit_member_count_excludes_the_owner(client, auth_headers, create_unit):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME)
+
+    assert _student_count(client, owner_headers, unit["id"]) == 0
+
+def test_unit_member_count_counts_enrolled_students(client, auth_headers, create_unit):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME)
+
+    for i in range(3):
+        _enrol(client, auth_headers(email=f"student{i}@test.com", password=TEST_USER_PASSWORD), unit["code"])
+
+    assert _student_count(client, owner_headers, unit["id"]) == 3
+
+def test_unit_member_count_excludes_administrators(client, auth_headers, create_unit):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME)
+
+    promoted_email = "promoted@test.com"
+    _enrol(client, auth_headers(email=promoted_email, password=TEST_USER_PASSWORD), unit["code"])
+    _enrol(client, auth_headers(email="student@test.com", password=TEST_USER_PASSWORD), unit["code"])
+
+    assert _student_count(client, owner_headers, unit["id"]) == 2
+
+    response = client.get(f"/units/{unit['id']}/members", headers=owner_headers)
+    assert response.status_code == 200, response.text
+    promoted_id = next(m["user_id"] for m in response.json() if m["email"] == promoted_email)
+
+    response = client.patch(
+        f"/units/{unit['id']}/members/{promoted_id}",
+        headers=owner_headers,
+        json={"role": "administrator"},
+    )
+    assert response.status_code == 200, response.text
+
+    assert _student_count(client, owner_headers, unit["id"]) == 1
+
+def test_unit_member_count_is_scoped_to_unit(client, auth_headers, create_unit):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME)
+    other_unit = create_unit(headers=owner_headers, name="other_unit")
+
+    for i in range(2):
+        _enrol(client, auth_headers(email=f"student{i}@test.com", password=TEST_USER_PASSWORD), unit["code"])
+
+    for i in range(4):
+        _enrol(client, auth_headers(email=f"other_student{i}@test.com", password=TEST_USER_PASSWORD), other_unit["code"])
+
+    assert _student_count(client, owner_headers, unit["id"]) == 2
+    assert _student_count(client, owner_headers, other_unit["id"]) == 4
