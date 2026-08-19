@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from src.routers import auth, groups, users, units
+from src.routers import auth, groups, time_slots, users, units
 from src.database import engine, Base
 
 # Make sure models definitely get imported
@@ -27,3 +27,4 @@ app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 app.include_router(users.router, prefix="/users", tags=["Users"])
 app.include_router(groups.router, prefix="/groups", tags=["Groups"])
 app.include_router(units.router, prefix="/units", tags=["Units"])
+app.include_router(time_slots.router, prefix="/time-slots", tags=["Time slots"])
