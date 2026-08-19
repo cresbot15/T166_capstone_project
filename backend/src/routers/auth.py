@@ -10,6 +10,9 @@ router = APIRouter()
 
 @router.post("/register", response_model=UserResponse)
 def register(user: UserRegister, db: Session = Depends(get_db)):
+    '''Attempt to register a user
+
+    Email must be unique among ALL other users'''
     conflicts = []
     if db.query(User).filter(User.email == user.email).first():
         conflicts.append("Email already in use")
@@ -29,6 +32,9 @@ def register(user: UserRegister, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=TokenResponse)
 def login(user: UserLogin, db: Session = Depends(get_db)):
+    '''Attempt to login as the specified user
+
+    Returns a jwt that is used as authentication for other endpoints'''
     db_user = db.query(User).filter(User.email == user.email).first()
 
     if not db_user or not verify_password(user.password, str(db_user.password_hash)):
