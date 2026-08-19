@@ -38,6 +38,12 @@ class UnitCreate(BaseModel):
 class UnitJoin(BaseModel):
     code: str
 
+    # Codes are generated in upper case, so accept whatever casing the student types
+    @field_validator("code")
+    @classmethod
+    def normalise_code(cls, v: str) -> str:
+        return v.strip().upper()
+
 class UnitResponse(BaseModel):
     model_config = {"from_attributes": True}
 

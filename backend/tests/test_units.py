@@ -155,6 +155,25 @@ def test_time_preferences_still_reject_unknown_slots(client, auth_headers, creat
     )
     assert response.status_code == 422, response.text
 
+def test_join_unit_code_is_case_and_whitespace_insensitive(client, auth_headers, create_unit):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME)
+
+    student_headers = auth_headers(email="student@test.com", password=TEST_USER_PASSWORD)
+
+    response = client.post("/units/join", headers=student_headers, json={"code": f"  {unit['code'].lower()} "})
+    assert response.status_code == 200, response.text
+    assert response.json()["id"] == unit["id"]
+
+def test_join_unit_rejects_an_incorrect_code(client, auth_headers, create_unit):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    create_unit(headers=owner_headers, name=TEST_UNIT_NAME)
+
+    student_headers = auth_headers(email="student@test.com", password=TEST_USER_PASSWORD)
+
+    response = client.post("/units/join", headers=student_headers, json={"code": "notarealcode"})
+    assert response.status_code == 404, response.text
+
 def test_create_unit_codes_are_unique(client, auth_headers, create_unit):
     headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
 
