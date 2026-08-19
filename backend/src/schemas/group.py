@@ -1,8 +1,14 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from src.schemas.user import UserResponse
 
 class GroupJoin(BaseModel):
     preference_code: str
+
+    # Normalise codes
+    @field_validator("preference_code")
+    @classmethod
+    def normalise_preference_code(cls, v: str) -> str:
+        return v.strip().upper()
 
 class GroupResponse(BaseModel):
     model_config = {"from_attributes": True}

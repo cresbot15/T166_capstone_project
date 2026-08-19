@@ -34,6 +34,18 @@ def test_join_group_allows_up_to_unit_max_group_size(auth_headers, create_unit, 
 
     assert len(get_group(owner_headers, unit["id"], group["id"])["members"]) == 6
 
+def test_join_group_preference_code_is_case_and_whitespace_insensitive(auth_headers, create_unit, enrol_user, create_group, join_group):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME)
+
+    group = create_group(owner_headers, unit["id"])
+
+    joiner_headers = enrol_user(unit["code"], email="joiner@test.com")
+
+    response = join_group(joiner_headers, f" {group['preference_code'].lower()}  ")
+    assert response.status_code == 200, response.text
+    assert response.json()["group"]["id"] == group["id"]
+
 def test_joinable_groups_excludes_private_and_full_groups(auth_headers, create_unit, enrol_user, create_group, join_group, joinable_group_ids):
     owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
     unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME, max_group_size=2)
