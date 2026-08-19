@@ -1,8 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+import csv
+import io
+
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
 from src.constants import TIME_SLOT_ORDER
 from src.database import get_db
+from src.models.group import Group
 from src.models.unit import Unit, UnitMembership, UnitProfile
 from src.models.user import User
 from src.schemas.unit import (
@@ -185,10 +189,83 @@ def get_student_count(unit_id: int, db: Session = Depends(get_db), current_user:
 
     return {"student_count": student_count}
 
-@router.get("/{unit_id}/export/students")
-def export_unit_students(unit_id: int, db: Session = Depends(get_db), curent_user: User = Depends(get_current_user)):
-    pass
+EXPORT_COLUMNS = [
+    "user_id",
+    "first_name",
+    "last_name",
+    "email",
+    "role",
+    "is_new_student",
+    "delivery_mode",
+    "skills",
+    "time_preference_count",
+    "group_id",
+    "preference_code",
+    "group_status",
+    "group_unmet_requirements",
+    "group_member_count",
+    "group_common_time_slots",
+]
 
-@router.get("/{unit_id}/export/groups")
-def export_unit_groups(unit_id: int, db: Session = Depends(get_db), curent_user: User = Depends(get_current_user)):
-    pass
+@router.get("/{unit_id}/export", response_class=Response)
+def export_unit_students(unit_id: int, db: Session = Depends(get_db), _staff: UnitMembership = Depends(require_unit_staff)):
+    """Every member of the unit as CSV, one row each, with their group if they have one.
+
+    Owners and administrators only. Students with no group get blank group columns.
+    """
+    unit = db.query(Unit).filter(Unit.id == unit_id).first()
+
+    memberships = (
+        db.query(UnitMembership, User)
+        .join(User, User.id == UnitMembership.user_id)
+        .filter(UnitMembership.unit_id == unit_id)
+        .order_by(User.last_name, User.first_name)
+        .all()
+    )
+
+    profiles = {p.user_id: p for p in db.query(UnitProfile).filter(UnitProfile.unit_id == unit_id).all()}
+
+    # Grade each group once rather than per member
+    group_by_user = {}
+    group_columns = {}
+    for group in db.query(Group).filter(Group.unit_id == unit_id).all():
+        group_columns[group.id] = [
+            group.id,
+            group.preference_code,
+            group.status,
+            "; ".join(group.unmet_requirements),
+            len(group.members),
+            "; ".join(group.common_time_slots),
+        ]
+        for member in group.members:
+            group_by_user[member.id] = group.id
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(EXPORT_COLUMNS)
+
+    for membership, user in memberships:
+        profile = profiles.get(user.id)
+        group_id = group_by_user.get(user.id)
+
+        writer.writerow([
+            user.id,
+            user.first_name,
+            user.last_name,
+            user.email,
+            membership.role,
+            profile.is_new_student if profile else False,
+            profile.delivery_mode if profile else None,
+            profile.skills if profile else None,
+            len(profile.time_preferences) if profile else 0,
+            *(group_columns[group_id] if group_id else [None] * 6),
+        ])
+
+    filename = f"{unit.code}-students.csv"
+
+    return Response(
+        # Excel misreads UTF-8 without a byte order mark
+        content=buffer.getvalue().encode("utf-8-sig"),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
