@@ -1,4 +1,4 @@
-from src.services.requirements import COMMON_TIME_SLOT, MIN_GROUP_SIZE
+from src.services.requirements import COMMON_TIME_SLOT, MAX_NEW_STUDENTS, MIN_GROUP_SIZE
 from tests.conftest import (
     TEST_UNIT_NAME,
     TEST_USER_EMAIL,
@@ -157,3 +157,92 @@ def test_group_meeting_every_requirement_is_pending(auth_headers, create_unit, e
     assert group["unmet_requirements"] == []
     assert group["status"] == "pending"
     assert group["common_time_slots"] == SHARED_SLOTS
+
+def test_group_over_max_new_students_is_provisional(auth_headers, create_unit, enrol_user, create_group, join_group, get_group, set_time_preferences, set_new_student):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME, min_group_size=2, max_new_students=1)
+    set_time_preferences(owner_headers, unit["id"], SHARED_SLOTS)
+    set_new_student(owner_headers, unit["id"], True)
+
+    group = create_group(owner_headers, unit["id"])
+
+    joiner_headers = enrol_user(unit["code"], email="joiner@test.com")
+    set_time_preferences(joiner_headers, unit["id"], SHARED_SLOTS)
+    set_new_student(joiner_headers, unit["id"], True)
+    assert join_group(joiner_headers, group["preference_code"]).status_code == 200
+
+    group = get_group(owner_headers, unit["id"], group["id"])
+    assert group["unmet_requirements"] == [MAX_NEW_STUDENTS]
+    assert group["status"] == "provisional"
+
+def test_group_at_max_new_students_is_pending(auth_headers, create_unit, enrol_user, create_group, join_group, get_group, set_time_preferences, set_new_student):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME, min_group_size=2, max_new_students=1)
+    set_time_preferences(owner_headers, unit["id"], SHARED_SLOTS)
+    set_new_student(owner_headers, unit["id"], True)
+
+    group = create_group(owner_headers, unit["id"])
+
+    joiner_headers = enrol_user(unit["code"], email="joiner@test.com")
+    set_time_preferences(joiner_headers, unit["id"], SHARED_SLOTS)
+    assert join_group(joiner_headers, group["preference_code"]).status_code == 200
+
+    group = get_group(owner_headers, unit["id"], group["id"])
+    assert group["unmet_requirements"] == []
+    assert group["status"] == "pending"
+
+def test_group_ignores_new_students_when_the_unit_sets_no_maximum(auth_headers, create_unit, enrol_user, create_group, join_group, get_group, set_time_preferences, set_new_student):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME, min_group_size=2)
+    assert unit["max_new_students"] is None
+
+    set_time_preferences(owner_headers, unit["id"], SHARED_SLOTS)
+    set_new_student(owner_headers, unit["id"], True)
+
+    group = create_group(owner_headers, unit["id"])
+
+    joiner_headers = enrol_user(unit["code"], email="joiner@test.com")
+    set_time_preferences(joiner_headers, unit["id"], SHARED_SLOTS)
+    set_new_student(joiner_headers, unit["id"], True)
+    assert join_group(joiner_headers, group["preference_code"]).status_code == 200
+
+    group = get_group(owner_headers, unit["id"], group["id"])
+    assert group["unmet_requirements"] == []
+    assert group["status"] == "pending"
+
+def test_zero_max_new_students_admits_a_group_with_no_new_students(auth_headers, create_unit, enrol_user, create_group, join_group, get_group, set_time_preferences, set_new_student):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME, min_group_size=2, max_new_students=0)
+    set_time_preferences(owner_headers, unit["id"], SHARED_SLOTS)
+
+    group = create_group(owner_headers, unit["id"])
+
+    joiner_headers = enrol_user(unit["code"], email="joiner@test.com")
+    set_time_preferences(joiner_headers, unit["id"], SHARED_SLOTS)
+    assert join_group(joiner_headers, group["preference_code"]).status_code == 200
+
+    assert get_group(owner_headers, unit["id"], group["id"])["unmet_requirements"] == []
+
+    set_new_student(joiner_headers, unit["id"], True)
+
+    group = get_group(owner_headers, unit["id"], group["id"])
+    assert group["unmet_requirements"] == [MAX_NEW_STUDENTS]
+    assert group["status"] == "provisional"
+
+def test_joining_is_never_blocked_by_max_new_students(auth_headers, create_unit, enrol_user, create_group, join_group, get_group, set_time_preferences, set_new_student):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME, min_group_size=2, max_new_students=0)
+    set_time_preferences(owner_headers, unit["id"], SHARED_SLOTS)
+
+    group = create_group(owner_headers, unit["id"])
+
+    joiner_headers = enrol_user(unit["code"], email="joiner@test.com")
+    set_time_preferences(joiner_headers, unit["id"], SHARED_SLOTS)
+    set_new_student(joiner_headers, unit["id"], True)
+
+    response = join_group(joiner_headers, group["preference_code"])
+    assert response.status_code == 200, response.text
+
+    group = get_group(owner_headers, unit["id"], group["id"])
+    assert len(group["members"]) == 2
+    assert group["unmet_requirements"] == [MAX_NEW_STUDENTS]

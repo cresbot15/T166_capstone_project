@@ -73,7 +73,7 @@ def auth_headers(client, make_user):
 
 @pytest.fixture()
 def create_unit(client):
-    def _create_unit(headers, name=TEST_UNIT_NAME, min_group_size=TEST_MIN_GROUP_SIZE, max_group_size=TEST_MAX_GROUP_SIZE, time_slots=None):
+    def _create_unit(headers, name=TEST_UNIT_NAME, min_group_size=TEST_MIN_GROUP_SIZE, max_group_size=TEST_MAX_GROUP_SIZE, time_slots=None, max_new_students=None):
         body = {
             "name": name,
             "min_group_size": min_group_size,
@@ -81,6 +81,8 @@ def create_unit(client):
         }
         if time_slots is not None:
             body["time_slots"] = time_slots
+        if max_new_students is not None:
+            body["max_new_students"] = max_new_students
         r = client.post("/units/create", json=body, headers=headers)
         assert r.status_code == 201, r.text
         return r.json()
@@ -138,6 +140,15 @@ def set_time_preferences(client):
         return r.json()
 
     return _set_time_preferences
+
+@pytest.fixture()
+def set_new_student(client):
+    def _set_new_student(headers, unit_id, is_new_student):
+        r = client.patch(f"/units/{unit_id}/me", json={"is_new_student": is_new_student}, headers=headers)
+        assert r.status_code == 200, r.text
+        return r.json()
+
+    return _set_new_student
 
 @pytest.fixture()
 def create_group(client):

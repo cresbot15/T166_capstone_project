@@ -91,6 +91,49 @@ def test_create_unit_allows_min_equal_to_max(client, auth_headers):
     assert response.status_code == 201, response.text
     assert response.json()["min_group_size"] == 4
 
+def test_create_unit_sets_max_new_students(client, auth_headers):
+    headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+
+    request_body = {
+        "name": TEST_UNIT_NAME,
+        "max_new_students": 2
+    }
+
+    response = client.post("/units/create", headers=headers, json=request_body)
+    assert response.status_code == 201, response.text
+    assert response.json()["max_new_students"] == 2
+
+def test_create_unit_defaults_to_no_max_new_students(auth_headers, create_unit):
+    headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+
+    unit = create_unit(headers=headers, name=TEST_UNIT_NAME)
+
+    assert unit["max_new_students"] is None
+
+def test_create_unit_allows_zero_max_new_students(client, auth_headers):
+    headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+
+    request_body = {
+        "name": TEST_UNIT_NAME,
+        "max_new_students": 0
+    }
+
+    response = client.post("/units/create", headers=headers, json=request_body)
+    assert response.status_code == 201, response.text
+    assert response.json()["max_new_students"] == 0
+
+def test_create_unit_rejects_out_of_range_max_new_students(client, auth_headers):
+    headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+
+    for size in (-1, MAX_MAX_GROUP_SIZE + 1):
+        request_body = {
+            "name": TEST_UNIT_NAME,
+            "max_new_students": size
+        }
+
+        response = client.post("/units/create", headers=headers, json=request_body)
+        assert response.status_code == 422, response.text
+
 def test_create_unit_defaults_to_every_time_slot(client, auth_headers, create_unit):
     headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
 

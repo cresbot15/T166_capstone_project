@@ -31,6 +31,7 @@ def create_unit(body: UnitCreate, db: Session = Depends(get_db), current_user: U
         name=body.name,
         min_group_size=body.min_group_size,
         max_group_size=body.max_group_size,
+        max_new_students=body.max_new_students,
         time_slots=body.time_slots or list(TIME_SLOT_ORDER),
     )
     db.add(unit)

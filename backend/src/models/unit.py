@@ -39,6 +39,8 @@ class Unit(Base):
     name: Mapped[str | None] = mapped_column(String)
     min_group_size: Mapped[int] = mapped_column(Integer, default=DEFAULT_MIN_GROUP_SIZE)
     max_group_size: Mapped[int] = mapped_column(Integer, default=DEFAULT_MAX_GROUP_SIZE)
+    # None means no limit 0 means no new students are allowed in a group
+    max_new_students: Mapped[int | None] = mapped_column(Integer, default=None)
     time_slots: Mapped[list[str]] = mapped_column(JSON, default=lambda: list(TIME_SLOT_ORDER))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
