@@ -1,3 +1,6 @@
+import csv
+import io
+
 from src.constants import (
     DEFAULT_MAX_GROUP_SIZE,
     DEFAULT_MIN_GROUP_SIZE,
@@ -6,6 +9,8 @@ from src.constants import (
     MIN_MIN_GROUP_SIZE,
     TIME_SLOT_ORDER,
 )
+from src.routers.units import EXPORT_COLUMNS
+from src.services.requirements import MIN_GROUP_SIZE
 from tests.conftest import (
     TEST_MAX_GROUP_SIZE,
     TEST_MIN_GROUP_SIZE,
@@ -229,6 +234,59 @@ def _student_count(client, headers, unit_id):
     response = client.get(f"/units/{unit_id}/student_count", headers=headers)
     assert response.status_code == 200, response.text
     return response.json()["student_count"]
+
+def _export_rows(client, headers, unit_id):
+    response = client.get(f"/units/{unit_id}/export", headers=headers)
+    assert response.status_code == 200, response.text
+    assert response.headers["content-type"].startswith("text/csv")
+    reader = csv.DictReader(io.StringIO(response.content.decode("utf-8-sig")))
+    return response, {row["email"]: row for row in reader}
+
+def test_export_lists_every_member_with_their_group(client, auth_headers, create_unit, enrol_user, create_group, set_time_preferences, set_new_student):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME, min_group_size=2)
+
+    grouped_headers = enrol_user(unit["code"], email="grouped@test.com")
+    set_time_preferences(grouped_headers, unit["id"], ["monday09", "monday10"])
+    set_new_student(grouped_headers, unit["id"], True)
+    group = create_group(grouped_headers, unit["id"])
+
+    ungrouped_headers = enrol_user(unit["code"], email="ungrouped@test.com")
+    set_time_preferences(ungrouped_headers, unit["id"], ["monday09"])
+
+    response, rows = _export_rows(client, owner_headers, unit["id"])
+
+    assert response.headers["content-disposition"] == f'attachment; filename="{unit["code"]}-students.csv"'
+    assert set(rows) == {TEST_USER_EMAIL, "grouped@test.com", "ungrouped@test.com"}
+
+    grouped = rows["grouped@test.com"]
+    assert grouped["role"] == "student"
+    assert grouped["is_new_student"] == "True"
+    assert grouped["time_preference_count"] == "2"
+    assert grouped["group_id"] == str(group["id"])
+    assert grouped["preference_code"] == group["preference_code"]
+    assert grouped["group_status"] == "provisional"
+    assert grouped["group_unmet_requirements"] == MIN_GROUP_SIZE
+    assert grouped["group_member_count"] == "1"
+
+def test_export_header_matches_the_declared_columns(client, auth_headers, create_unit):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME)
+
+    response = client.get(f"/units/{unit['id']}/export", headers=owner_headers)
+    assert response.status_code == 200, response.text
+
+    header = next(csv.reader(io.StringIO(response.content.decode("utf-8-sig"))))
+    assert header == EXPORT_COLUMNS
+
+def test_export_is_staff_only(client, auth_headers, create_unit, enrol_user):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME)
+
+    student_headers = enrol_user(unit["code"], email="student@test.com")
+
+    response = client.get(f"/units/{unit['id']}/export", headers=student_headers)
+    assert response.status_code == 403, response.text
 
 def test_unit_member_count_unit_nonexistent(client, auth_headers):
     headers = auth_headers()
