@@ -3,11 +3,11 @@ name: Backend CI
 # Only run on changes to backend directories
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
     paths:
       - 'backend/**'
   pull_request:
-    branches: [main]
+    branches: [main, develop]
     paths:
       - 'backend/**'
 
