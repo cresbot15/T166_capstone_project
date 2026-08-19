@@ -14,6 +14,7 @@ class UnitCreate(BaseModel):
     name: str | None = None
     min_group_size: int = Field(default=DEFAULT_MIN_GROUP_SIZE, ge=MIN_MIN_GROUP_SIZE, le=MAX_MAX_GROUP_SIZE)
     max_group_size: int = Field(default=DEFAULT_MAX_GROUP_SIZE, ge=MIN_MAX_GROUP_SIZE, le=MAX_MAX_GROUP_SIZE)
+    max_new_students: int | None = Field(default=None, ge=0, le=MAX_MAX_GROUP_SIZE)
     time_slots: list[str] | None = None
 
     @field_validator("time_slots")
@@ -38,7 +39,7 @@ class UnitCreate(BaseModel):
 class UnitJoin(BaseModel):
     code: str
 
-    # Codes are generated in upper case, so accept whatever casing the student types
+    # Normalise codes
     @field_validator("code")
     @classmethod
     def normalise_code(cls, v: str) -> str:
@@ -52,6 +53,7 @@ class UnitResponse(BaseModel):
     name: str | None = None
     min_group_size: int
     max_group_size: int
+    max_new_students: int | None = None
     time_slots: list[str] = []
 
 class UnitRoleUpdate(BaseModel):
