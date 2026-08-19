@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from sqlalchemy import Boolean, DateTime, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.database import Base
+from src.services.requirements import evaluate_group
 
 
 class GroupMembership(Base):
@@ -44,8 +45,9 @@ class Group(Base):
         return sorted(result)
 
     @property
+    def unmet_requirements(self) -> list[str]:
+        return evaluate_group(self, self.unit)
+
+    @property
     def status(self) -> str:
-        """A group is valid once it has enough members and they share a free slot."""
-        if len(self.members) < self.unit.min_group_size:
-            return "provisional"
-        return "valid" if self.common_time_slots else "provisional"
+        return "provisional" if self.unmet_requirements else "pending"

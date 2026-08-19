@@ -5,10 +5,13 @@ DEFAULT_MAX_GROUP_SIZE = 5
 MIN_MAX_GROUP_SIZE = 2
 MAX_MAX_GROUP_SIZE = 20
 
-TIME_SLOTS: frozenset[str] = frozenset({
-    "mondayMorning", "mondayAfternoon", "mondayEvening",
-    "tuesdayMorning", "tuesdayAfternoon", "tuesdayEvening",
-    "wednesdayMorning", "wednesdayAfternoon", "wednesdayEvening",
-    "thursdayMorning", "thursdayAfternoon", "thursdayEvening",
-    "fridayMorning", "fridayAfternoon", "fridayEvening",
-})
+DAYS: tuple[str, ...] = (
+    "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+)
+
+# Every hour of every day, named for the hour it starts: "monday00" .. "sunday23".
+# Ordered chronologically; TIME_SLOTS is the same set for membership checks.
+TIME_SLOT_ORDER: tuple[str, ...] = tuple(
+    f"{day}{hour:02d}" for day in DAYS for hour in range(24)
+)
+TIME_SLOTS: frozenset[str] = frozenset(TIME_SLOT_ORDER)
