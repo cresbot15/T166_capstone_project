@@ -20,6 +20,7 @@ Base.metadata.create_all(bind=engine)
 
 @app.get("/health", tags=["Health"])
 def health_check():
+    '''Returns the status of the API server'''
     return {"status": "ok"}
 
 # Routers
