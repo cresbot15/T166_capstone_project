@@ -6,6 +6,7 @@ from src.constants import (
     MAX_MAX_GROUP_SIZE,
     MIN_MAX_GROUP_SIZE,
     MIN_MIN_GROUP_SIZE,
+    TIME_SLOT_ORDER,
     TIME_SLOTS,
 )
 
@@ -13,6 +14,20 @@ class UnitCreate(BaseModel):
     name: str | None = None
     min_group_size: int = Field(default=DEFAULT_MIN_GROUP_SIZE, ge=MIN_MIN_GROUP_SIZE, le=MAX_MAX_GROUP_SIZE)
     max_group_size: int = Field(default=DEFAULT_MAX_GROUP_SIZE, ge=MIN_MAX_GROUP_SIZE, le=MAX_MAX_GROUP_SIZE)
+    time_slots: list[str] | None = None
+
+    @field_validator("time_slots")
+    @classmethod
+    def validate_time_slots(cls, v: list[str] | None) -> list[str] | None:
+        if v is None:
+            return v
+        invalid = set(v) - TIME_SLOTS
+        if invalid:
+            raise ValueError(f"Invalid time slots: {sorted(invalid)}")
+        if not v:
+            raise ValueError("time_slots cannot be empty")
+        # Dedupe and store chronologically so the stored order never depends on the request
+        return [slot for slot in TIME_SLOT_ORDER if slot in set(v)]
 
     @model_validator(mode="after")
     def validate_group_size_range(self):
@@ -31,6 +46,7 @@ class UnitResponse(BaseModel):
     name: str | None = None
     min_group_size: int
     max_group_size: int
+    time_slots: list[str] = []
 
 class UnitRoleUpdate(BaseModel):
     role: Literal["administrator", "student"]
@@ -47,17 +63,6 @@ class UnitProfileUpdate(BaseModel):
     delivery_mode: str | None = None
     skills: str | None = None
     time_preferences: list[str] | None = None
-
-    # time_preferences stores raw JSON so we need to validate the the input here in the code
-    @field_validator("time_preferences")
-    @classmethod
-    def validate_time_preferences(cls, v: list[str] | None) -> list[str] | None:
-        if v is None:
-            return v
-        invalid = set(v) - TIME_SLOTS
-        if invalid:
-            raise ValueError(f"Invalid time slots: {sorted(invalid)}")
-        return v
 
 class UnitMemberResponse(BaseModel):
     user_id: int

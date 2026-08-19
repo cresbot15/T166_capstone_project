@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from src.constants import TIME_SLOT_ORDER
 from src.database import get_db
 from src.models.unit import Unit, UnitMembership, UnitProfile
 from src.models.user import User
@@ -30,6 +31,7 @@ def create_unit(body: UnitCreate, db: Session = Depends(get_db), current_user: U
         name=body.name,
         min_group_size=body.min_group_size,
         max_group_size=body.max_group_size,
+        time_slots=body.time_slots or list(TIME_SLOT_ORDER),
     )
     db.add(unit)
     db.commit()
@@ -93,6 +95,15 @@ def update_my_unit_profile(unit_id: int, body: UnitProfileUpdate, db: Session = 
     membership = db.query(UnitMembership).filter_by(user_id=current_user.id, unit_id=unit_id).first()
     if not membership:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not enrolled in this unit")
+
+    if body.time_preferences is not None:
+        unit = db.query(Unit).filter(Unit.id == unit_id).first()
+        invalid = sorted(set(body.time_preferences) - set(unit.time_slots))
+        if invalid:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=f"Time slots not offered by this unit: {invalid}",
+            )
 
     profile = db.query(UnitProfile).filter_by(user_id=current_user.id, unit_id=unit_id).first()
     for field, value in body.model_dump(exclude_none=True).items():

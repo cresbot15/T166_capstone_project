@@ -14,6 +14,7 @@ class GroupResponse(BaseModel):
     is_public: bool = False
     members: list[UserResponse] = []
     status: str = "provisional"
+    unmet_requirements: list[str] = []
     common_time_slots: list[str] = []
 
 class GroupJoinResponse(BaseModel):

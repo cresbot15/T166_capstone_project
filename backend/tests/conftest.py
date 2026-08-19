@@ -73,12 +73,14 @@ def auth_headers(client, make_user):
 
 @pytest.fixture()
 def create_unit(client):
-    def _create_unit(headers, name=TEST_UNIT_NAME, min_group_size=TEST_MIN_GROUP_SIZE, max_group_size=TEST_MAX_GROUP_SIZE):
+    def _create_unit(headers, name=TEST_UNIT_NAME, min_group_size=TEST_MIN_GROUP_SIZE, max_group_size=TEST_MAX_GROUP_SIZE, time_slots=None):
         body = {
             "name": name,
             "min_group_size": min_group_size,
             "max_group_size": max_group_size
         }
+        if time_slots is not None:
+            body["time_slots"] = time_slots
         r = client.post("/units/create", json=body, headers=headers)
         assert r.status_code == 201, r.text
         return r.json()
@@ -102,6 +104,40 @@ def enrol_user(auth_headers, join_unit):
         return headers
 
     return _enrol_user
+
+@pytest.fixture()
+def join_group(client):
+    def _join_group(headers, preference_code):
+        return client.post("/groups/join", json={"preference_code": preference_code}, headers=headers)
+
+    return _join_group
+
+@pytest.fixture()
+def get_group(client):
+    def _get_group(headers, unit_id, group_id):
+        r = client.get(f"/groups/{unit_id}", headers=headers)
+        assert r.status_code == 200, r.text
+        return next(g for g in r.json() if g["id"] == group_id)
+
+    return _get_group
+
+@pytest.fixture()
+def joinable_group_ids(client):
+    def _joinable_group_ids(headers, unit_id):
+        r = client.get(f"/groups/{unit_id}/joinable", headers=headers)
+        assert r.status_code == 200, r.text
+        return sorted(g["id"] for g in r.json())
+
+    return _joinable_group_ids
+
+@pytest.fixture()
+def set_time_preferences(client):
+    def _set_time_preferences(headers, unit_id, slots):
+        r = client.patch(f"/units/{unit_id}/me", json={"time_preferences": slots}, headers=headers)
+        assert r.status_code == 200, r.text
+        return r.json()
+
+    return _set_time_preferences
 
 @pytest.fixture()
 def create_group(client):

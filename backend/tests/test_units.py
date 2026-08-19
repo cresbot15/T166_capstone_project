@@ -4,6 +4,7 @@ from src.constants import (
     MAX_MAX_GROUP_SIZE,
     MIN_MAX_GROUP_SIZE,
     MIN_MIN_GROUP_SIZE,
+    TIME_SLOT_ORDER,
 )
 from tests.conftest import (
     TEST_MAX_GROUP_SIZE,
@@ -89,6 +90,70 @@ def test_create_unit_allows_min_equal_to_max(client, auth_headers):
     response = client.post("/units/create", headers=headers, json=request_body)
     assert response.status_code == 201, response.text
     assert response.json()["min_group_size"] == 4
+
+def test_create_unit_defaults_to_every_time_slot(client, auth_headers, create_unit):
+    headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+
+    unit = create_unit(headers=headers, name=TEST_UNIT_NAME)
+
+    assert unit["time_slots"] == list(TIME_SLOT_ORDER)
+    assert len(unit["time_slots"]) == 7 * 24
+
+def test_create_unit_accepts_a_subset_of_time_slots(client, auth_headers, create_unit):
+    headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+
+    unit = create_unit(headers=headers, name=TEST_UNIT_NAME, time_slots=["wednesday14", "monday09"])
+
+    assert unit["time_slots"] == ["monday09", "wednesday14"]
+
+def test_create_unit_rejects_unknown_time_slots(client, auth_headers):
+    headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+
+    request_body = {
+        "name": TEST_UNIT_NAME,
+        "time_slots": ["monday09", "mondayMorning", "monday24"]
+    }
+
+    response = client.post("/units/create", headers=headers, json=request_body)
+    assert response.status_code == 422, response.text
+    assert "mondayMorning" in response.text
+    assert "monday24" in response.text
+
+def test_create_unit_rejects_empty_time_slots(client, auth_headers):
+    headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+
+    request_body = {
+        "name": TEST_UNIT_NAME,
+        "time_slots": []
+    }
+
+    response = client.post("/units/create", headers=headers, json=request_body)
+    assert response.status_code == 422, response.text
+
+def test_time_preferences_must_be_offered_by_the_unit(client, auth_headers, create_unit, set_time_preferences):
+    headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=headers, name=TEST_UNIT_NAME, time_slots=["monday09", "monday10"])
+
+    set_time_preferences(headers, unit["id"], ["monday09"])
+
+    response = client.patch(
+        f"/units/{unit['id']}/me",
+        headers=headers,
+        json={"time_preferences": ["monday09", "friday18"]},
+    )
+    assert response.status_code == 422, response.text
+    assert "friday18" in response.text
+
+def test_time_preferences_still_reject_unknown_slots(client, auth_headers, create_unit):
+    headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=headers, name=TEST_UNIT_NAME)
+
+    response = client.patch(
+        f"/units/{unit['id']}/me",
+        headers=headers,
+        json={"time_preferences": ["notARealSlot"]},
+    )
+    assert response.status_code == 422, response.text
 
 def test_create_unit_codes_are_unique(client, auth_headers, create_unit):
     headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
