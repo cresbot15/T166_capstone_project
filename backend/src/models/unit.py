@@ -1,4 +1,6 @@
-from sqlalchemy import JSON, Boolean, ForeignKey, Integer, String
+from datetime import datetime, timezone
+
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.constants import DEFAULT_MAX_GROUP_SIZE, DEFAULT_MIN_GROUP_SIZE
 from src.database import Base
@@ -37,6 +39,7 @@ class Unit(Base):
     name: Mapped[str | None] = mapped_column(String)
     min_group_size: Mapped[int] = mapped_column(Integer, default=DEFAULT_MIN_GROUP_SIZE)
     max_group_size: Mapped[int] = mapped_column(Integer, default=DEFAULT_MAX_GROUP_SIZE)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     users = relationship("User", secondary="user_units", back_populates="units", viewonly=True)
     unit_memberships = relationship("UnitMembership", back_populates="unit", cascade="all, delete-orphan")
