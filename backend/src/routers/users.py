@@ -10,10 +10,12 @@ router = APIRouter()
 
 @router.get("/me", response_model=UserResponse)
 def get_me(current_user: User = Depends(get_current_user)):
+    '''Returns information about the currently logged in user'''
     return current_user
 
 @router.patch("/me", response_model=UserResponse)
 def update_me(update: UserUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    '''Changes name of the currently logged in user'''
     for field, value in update.model_dump(exclude_none=True).items():
         setattr(current_user, field, value)
         

@@ -20,6 +20,9 @@ def _group_in_unit_or_404(db: Session, unit_id: int, group_id: int) -> Group:
 
 @router.post("/join", response_model=GroupJoinResponse)
 def join_group(body: GroupJoin, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    '''Attempts to join the currently logged in user into the specified group
+    
+    User must not already be in a group, must be enrolled in the unit that the group is in, and the group must not be full'''
     group = db.query(Group).filter(Group.preference_code == body.preference_code).first()
     if not group:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invalid preference code")
@@ -41,6 +44,9 @@ def join_group(body: GroupJoin, db: Session = Depends(get_db), current_user: Use
 
 @router.post("/create", response_model=GroupResponse)
 def create_group(body: GroupCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    '''Attempts to create a group as the currently logged in user
+    
+    User must enrolled in the unit where the group is being created, and most not already be in a group in that unit'''
     unit = db.query(Unit).filter(Unit.id == body.unit_id).first()
     if not unit:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unit not found")
@@ -65,10 +71,18 @@ def create_group(body: GroupCreate, db: Session = Depends(get_db), current_user:
 
 @router.get("/my-groups", response_model=list[GroupResponse])
 def get_my_groups(current_user: User = Depends(get_current_user)):
+    '''Returns all groups that the currently logged in user is a part of'''
     return [GroupResponse.model_validate(g) for g in current_user.groups]
 
 @router.get("/{unit_id}", response_model=list[GroupResponse])
 def get_groups(unit_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    '''Attempts to get information about the specified unit as the logged in user
+    
+    User must be a member of the unit
+    
+    If the user is an owner/admin of the unit, information about all groups will be returned
+    
+    If the user is a student in the unit, only information about public groups will be returned'''
     membership = db.query(UnitMembership).filter_by(user_id=current_user.id, unit_id=unit_id).first()
     if not membership:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enrolled in this unit")
@@ -82,7 +96,7 @@ def get_groups(unit_id: int, db: Session = Depends(get_db), current_user: User =
 
 @router.get("/{unit_id}/joinable", response_model=list[GroupResponse])
 def get_joinable_groups(unit_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Groups in this unit the caller could join: public, not full, and not their own."""
+    '''Lists groups that the logged in user is able to join'''
     unit = db.query(Unit).filter(Unit.id == unit_id).first()
     if not unit:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unit not found")
@@ -125,6 +139,9 @@ def get_recommended_times(unit_id: int, group_id: int, db: Session = Depends(get
 
 @router.delete("/{unit_id}/{group_id}/leave", response_model=None, status_code=status.HTTP_204_NO_CONTENT)
 def leave_group(unit_id: int, group_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    '''Attempts to leave the given group in the given unit as the logged in user
+    
+    If the user leaving the group would leave the group empty, it is deleted'''
     group = _group_in_unit_or_404(db, unit_id, group_id)
 
     if current_user not in group.members:
