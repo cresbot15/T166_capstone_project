@@ -26,10 +26,14 @@ router = APIRouter()
 
 @router.get("/me", response_model=list[UnitResponse])
 def get_my_units(current_user: User = Depends(get_current_user)):
+    '''Returns all units that the currently logged in user is enrolled in'''
     return current_user.units
 
 @router.post("/create", response_model=UnitResponse, status_code=status.HTTP_201_CREATED)
 def create_unit(body: UnitCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    '''Attempts to create a unit as the logged in user
+    
+    The logged in user will added to the unit as its owner'''
     unit = Unit(
         code=generate_unit_code(db),
         name=body.name,
@@ -50,6 +54,7 @@ def create_unit(body: UnitCreate, db: Session = Depends(get_db), current_user: U
 
 @router.post("/join", response_model=UnitResponse)
 def join_unit(body: UnitJoin, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    '''Attempts to join the a unit using the unit join code in the body as the logged in user'''
     unit = db.query(Unit).filter(Unit.code == body.code).first()
     if not unit:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unit not found")
@@ -64,6 +69,7 @@ def join_unit(body: UnitJoin, db: Session = Depends(get_db), current_user: User 
 
 @router.delete("/{unit_id}/leave", response_model=None, status_code=status.HTTP_204_NO_CONTENT)
 def leave_unit(unit_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    '''Attempts to remove the logged in user from the given unit'''
     membership = db.query(UnitMembership).filter_by(user_id=current_user.id, unit_id=unit_id).first()
     if not membership:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not enrolled in unit")
@@ -80,6 +86,7 @@ def leave_unit(unit_id: int, db: Session = Depends(get_db), current_user: User =
 
 @router.get("/{unit_id}/me", response_model=UnitMeResponse)
 def get_my_unit_profile(unit_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    '''Gets the unit profile of the currently logged in user'''
     membership = db.query(UnitMembership).filter_by(user_id=current_user.id, unit_id=unit_id).first()
     if not membership:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not enrolled in this unit")
@@ -97,6 +104,9 @@ def get_my_unit_profile(unit_id: int, db: Session = Depends(get_db), current_use
 
 @router.patch("/{unit_id}/me", response_model=UnitMeResponse)
 def update_my_unit_profile(unit_id: int, body: UnitProfileUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    '''Updates the unit profile of the currently logged in user
+    
+    Any body parameters not sent will remain unchanged, they will not be nulled'''
     membership = db.query(UnitMembership).filter_by(user_id=current_user.id, unit_id=unit_id).first()
     if not membership:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not enrolled in this unit")
@@ -127,6 +137,9 @@ def update_my_unit_profile(unit_id: int, body: UnitProfileUpdate, db: Session = 
 
 @router.get("/{unit_id}/members", response_model=list[UnitMemberResponse])
 def get_unit_members(unit_id: int, db: Session = Depends(get_db), _staff: UnitMembership = Depends(require_unit_staff)):
+    '''This endpoint is only usable by unit owners and administrators
+    
+    Returns a list of all current current members in the given unit'''
     memberships = (
         db.query(UnitMembership, User)
         .join(User, User.id == UnitMembership.user_id)
@@ -156,6 +169,7 @@ def get_unit_members(unit_id: int, db: Session = Depends(get_db), _staff: UnitMe
 
 @router.patch("/{unit_id}/members/{user_id}", response_model=UnitMembershipResponse)
 def set_member_role(unit_id: int, user_id: int, body: UnitRoleUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    '''This endpoint is only usable by unit owners and administrators'''
     caller_membership = db.query(UnitMembership).filter_by(user_id=current_user.id, unit_id=unit_id).first()
     if not caller_membership or caller_membership.role != "owner":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the unit owner can change member roles")
@@ -178,6 +192,7 @@ def set_member_role(unit_id: int, user_id: int, body: UnitRoleUpdate, db: Sessio
 
 @router.get("/{unit_id}/student_count")
 def get_student_count(unit_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    '''Returns the number of students currently enrolled in the given unit'''
     if not db.query(Unit).filter(Unit.id == unit_id).first():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unit not found")
 
@@ -209,10 +224,9 @@ EXPORT_COLUMNS = [
 
 @router.get("/{unit_id}/export", response_class=Response)
 def export_unit_students(unit_id: int, db: Session = Depends(get_db), _staff: UnitMembership = Depends(require_unit_staff)):
-    """Every member of the unit as CSV, one row each, with their group if they have one.
-
-    Owners and administrators only. Students with no group get blank group columns.
-    """
+    '''This endpoint is only usable by the owner of the given unit
+    
+    Exports a csv file with information about all students in the unit'''
     unit = db.query(Unit).filter(Unit.id == unit_id).first()
 
     memberships = (

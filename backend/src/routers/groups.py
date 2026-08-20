@@ -96,7 +96,7 @@ def get_groups(unit_id: int, db: Session = Depends(get_db), current_user: User =
 
 @router.get("/{unit_id}/joinable", response_model=list[GroupResponse])
 def get_joinable_groups(unit_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    '''Groups in this unit the caller could join: public, not full, and not their own.'''
+    '''Lists groups that the logged in user is able to join'''
     unit = db.query(Unit).filter(Unit.id == unit_id).first()
     if not unit:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unit not found")

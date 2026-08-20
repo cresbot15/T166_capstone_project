@@ -8,5 +8,5 @@ router = APIRouter()
 
 @router.get("", response_model=list[str])
 def get_time_slots(current_user: User = Depends(get_current_user)):
-    """The master slot list, chronologically ordered, for choosing a unit's time_slots."""
+    '''Returns the master list, of time_slots for the application'''
     return list(TIME_SLOT_ORDER)
