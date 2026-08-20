@@ -3,11 +3,11 @@ name: Backend CI
 # Only run on changes to backend directories
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
     paths:
       - 'backend/**'
   pull_request:
-    branches: [main]
+    branches: [main, develop]
     paths:
       - 'backend/**'
 
@@ -28,8 +28,6 @@ jobs:
 
       - name: Run backend tests
         working-directory: backend
-        env:
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: uv run pytest
 
       - name: Start server
