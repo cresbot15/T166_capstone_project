@@ -29,6 +29,11 @@
 	--radius-selector: 1rem;
 	--radius-field: 0.75rem;
 	--radius-box: 1rem;
+	--size-selector: 0.25rem;
+	--size-field: 0.25rem;
+	--border: 1px;
+	--depth: 1;
+	--noise: 0;
 }
 
 body {
@@ -39,4 +44,18 @@ h1,
 h2 {
 	font-weight: 800;
 	letter-spacing: -0.02em;
+}
+
+/*
+ * daisyUI 5 dropped the -bordered modifiers (input-bordered, select-bordered,
+ * etc. are no-ops now) and only shows a full-opacity border on focus; at rest
+ * it's a 20%-opacity border that reads as borderless. Keep the resting border
+ * as visible as the focus one across every form control, app-wide.
+ */
+.select,
+.input,
+.textarea,
+.checkbox,
+.radio {
+	--input-color: var(--color-base-content);
 }
