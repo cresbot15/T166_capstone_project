@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
+from src.constants import TIME_SLOT_ORDER
 from src.database import get_db
 from src.models.group import Group, GroupMembership
 from src.models.unit import Unit, UnitMembership
@@ -135,7 +136,7 @@ def get_recommended_times(unit_id: int, group_id: int, db: Session = Depends(get
     for s in sets[1:]:
         result = result & s
 
-    return sorted(result)
+    return [slot for slot in TIME_SLOT_ORDER if slot in result]
 
 @router.delete("/{unit_id}/{group_id}/leave", response_model=None, status_code=status.HTTP_204_NO_CONTENT)
 def leave_group(unit_id: int, group_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
