@@ -7,7 +7,7 @@ from src.models.group import Group, GroupMembership
 from src.models.unit import Unit, UnitMembership
 from src.models.user import User
 from src.schemas.group import GroupJoin, GroupJoinResponse, GroupResponse, GroupCreate
-from src.services.auth import get_current_user
+from src.services.auth import get_current_user, require_unit_staff
 from src.services.codes import generate_preference_code
 
 router = APIRouter()
@@ -18,6 +18,15 @@ def _group_in_unit_or_404(db: Session, unit_id: int, group_id: int) -> Group:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
     return group
 
+def _remove_member(db: Session, group: Group, user_id: int) -> None:
+    """Removes a member, deleting the group if they were the last one."""
+    membership = db.query(GroupMembership).filter_by(user_id=user_id, group_id=group.id).first()
+    db.delete(membership)
+    db.commit()
+
+    if len(group.members) == 0:
+        db.delete(group)
+        db.commit()
 
 @router.post("/join", response_model=GroupJoinResponse)
 def join_group(body: GroupJoin, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -148,10 +157,17 @@ def leave_group(unit_id: int, group_id: int, db: Session = Depends(get_db), curr
     if current_user not in group.members:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a member of this group")
 
-    membership = db.query(GroupMembership).filter_by(user_id=current_user.id, group_id=group.id).first()
-    db.delete(membership)
-    db.commit()
+    _remove_member(db, group, current_user.id)
 
-    if len(group.members) == 0:
-        db.delete(group)
-        db.commit()
+@router.delete("/{unit_id}/{group_id}/members/{user_id}", response_model=None, status_code=status.HTTP_204_NO_CONTENT)
+def remove_group_member(unit_id: int, group_id: int, user_id: int, db: Session = Depends(get_db), _staff: UnitMembership = Depends(require_unit_staff)):
+    '''Removes the given member from the given group in the given unit
+
+    Owners and administrators only. If removing the member would leave the group
+    empty, it is deleted. Being removed can push a group into provisional.'''
+    group = _group_in_unit_or_404(db, unit_id, group_id)
+
+    if not any(m.id == user_id for m in group.members):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User is not a member of this group")
+
+    _remove_member(db, group, user_id)

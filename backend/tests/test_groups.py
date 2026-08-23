@@ -246,3 +246,100 @@ def test_joining_is_never_blocked_by_max_new_students(auth_headers, create_unit,
     group = get_group(owner_headers, unit["id"], group["id"])
     assert len(group["members"]) == 2
     assert group["unmet_requirements"] == [MAX_NEW_STUDENTS]
+
+def _member_ids(client, headers, unit_id, group_id):
+    response = client.get(f"/groups/{unit_id}", headers=headers)
+    assert response.status_code == 200, response.text
+    group = next(g for g in response.json() if g["id"] == group_id)
+    return [m["id"] for m in group["members"]]
+
+def test_staff_can_remove_a_member_from_a_group(client, auth_headers, create_unit, enrol_user, create_group, join_group, get_group):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME, min_group_size=2)
+
+    creator_headers = enrol_user(unit["code"], email="creator@test.com")
+    group = create_group(creator_headers, unit["id"])
+
+    joiner_headers = enrol_user(unit["code"], email="joiner@test.com")
+    assert join_group(joiner_headers, group["preference_code"]).status_code == 200
+
+    member_ids = _member_ids(client, owner_headers, unit["id"], group["id"])
+    assert len(member_ids) == 2
+    removed_id = member_ids[1]
+
+    response = client.delete(f"/groups/{unit['id']}/{group['id']}/members/{removed_id}", headers=owner_headers)
+    assert response.status_code == 204, response.text
+
+    assert _member_ids(client, owner_headers, unit["id"], group["id"]) == [member_ids[0]]
+
+def test_removing_the_last_member_deletes_the_group(client, auth_headers, create_unit, enrol_user, create_group):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME)
+
+    creator_headers = enrol_user(unit["code"], email="creator@test.com")
+    group = create_group(creator_headers, unit["id"])
+
+    member_ids = _member_ids(client, owner_headers, unit["id"], group["id"])
+
+    response = client.delete(f"/groups/{unit['id']}/{group['id']}/members/{member_ids[0]}", headers=owner_headers)
+    assert response.status_code == 204, response.text
+
+    response = client.get(f"/groups/{unit['id']}", headers=owner_headers)
+    assert response.status_code == 200, response.text
+    assert response.json() == []
+
+def test_removing_a_member_can_make_a_group_provisional(client, auth_headers, create_unit, enrol_user, create_group, join_group, get_group, set_time_preferences):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME, min_group_size=2)
+
+    creator_headers = enrol_user(unit["code"], email="creator@test.com")
+    set_time_preferences(creator_headers, unit["id"], SHARED_SLOTS)
+    group = create_group(creator_headers, unit["id"])
+
+    joiner_headers = enrol_user(unit["code"], email="joiner@test.com")
+    set_time_preferences(joiner_headers, unit["id"], SHARED_SLOTS)
+    assert join_group(joiner_headers, group["preference_code"]).status_code == 200
+
+    assert get_group(owner_headers, unit["id"], group["id"])["status"] == "pending"
+
+    removed_id = _member_ids(client, owner_headers, unit["id"], group["id"])[1]
+    response = client.delete(f"/groups/{unit['id']}/{group['id']}/members/{removed_id}", headers=owner_headers)
+    assert response.status_code == 204, response.text
+
+    group = get_group(owner_headers, unit["id"], group["id"])
+    assert group["status"] == "provisional"
+    assert group["unmet_requirements"] == [MIN_GROUP_SIZE]
+
+def test_removing_a_member_who_is_not_in_the_group(client, auth_headers, create_unit, enrol_user, create_group):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME)
+
+    creator_headers = enrol_user(unit["code"], email="creator@test.com")
+    group = create_group(creator_headers, unit["id"])
+
+    enrol_user(unit["code"], email="bystander@test.com")
+    bystander_id = next(
+        m["user_id"]
+        for m in client.get(f"/units/{unit['id']}/members", headers=owner_headers).json()
+        if m["email"] == "bystander@test.com"
+    )
+
+    response = client.delete(f"/groups/{unit['id']}/{group['id']}/members/{bystander_id}", headers=owner_headers)
+    assert response.status_code == 404, response.text
+
+def test_students_cannot_remove_group_members(client, auth_headers, create_unit, enrol_user, create_group, join_group):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME)
+
+    creator_headers = enrol_user(unit["code"], email="creator@test.com")
+    group = create_group(creator_headers, unit["id"])
+
+    joiner_headers = enrol_user(unit["code"], email="joiner@test.com")
+    assert join_group(joiner_headers, group["preference_code"]).status_code == 200
+
+    member_ids = _member_ids(client, owner_headers, unit["id"], group["id"])
+
+    response = client.delete(f"/groups/{unit['id']}/{group['id']}/members/{member_ids[0]}", headers=joiner_headers)
+    assert response.status_code == 403, response.text
+
+    assert len(_member_ids(client, owner_headers, unit["id"], group["id"])) == 2
