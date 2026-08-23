@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { get } from 'svelte/store';
 	import { goto } from '$app/navigation';
 	import { api } from '$lib/api';
-	import { token, user } from '$lib/stores';
+	import { token, user, activeUnit } from '$lib/stores';
 
 	let email = $state('');
 	let password = $state('');
@@ -10,18 +11,27 @@
 	let loading = $state(false);
 
 	onMount(() => {
-		if ($token) goto('/profile');
+		if ($token) goto('/home');
 	});
 
-	async function handleSubmit() {
+	async function handleSubmit(e: SubmitEvent) {
+		e.preventDefault();
 		error = '';
 		loading = true;
 		try {
 			const data = await api.login(email, password);
 			token.set(data.access_token);
-			const me = await api.getMe();
-			user.set(me);
-			goto('/profile');
+			user.set(await api.getMe());
+
+			const units = await api.getMyUnits();
+			if (units.length === 0) {
+				goto('/onboarding/unit');
+				return;
+			}
+			const current = get(activeUnit);
+			const stillValid = current && units.some((u) => u.id === current.id);
+			activeUnit.set(stillValid ? current : units[0]);
+			goto('/home');
 		} catch (e: unknown) {
 			error = e instanceof Error ? e.message : 'Login failed';
 		} finally {
@@ -30,10 +40,11 @@
 	}
 </script>
 
-<div class="bg-base-200 min-h-screen flex items-center justify-center px-4">
-	<div class="card bg-base-100 shadow w-full max-w-sm">
+<div class="min-h-screen flex items-center justify-center px-4">
+	<div class="card bg-base-100 shadow-sm rounded-2xl w-full max-w-sm">
 		<div class="card-body">
-			<h1 class="card-title text-xl mb-2">Sign In</h1>
+			<h1 class="text-2xl font-extrabold text-primary mb-1">Sign In</h1>
+			<p class="text-sm text-base-content/60 mb-4">Welcome back to TeamUp!</p>
 			<form onsubmit={handleSubmit} class="flex flex-col gap-3">
 				<label class="flex flex-col gap-1">
 					<span class="text-sm font-medium">Email</span>
@@ -50,7 +61,7 @@
 					{loading ? 'Signing in…' : 'Sign In'}
 				</button>
 			</form>
-			<p class="text-sm text-base-content/60 mt-2">
+			<p class="text-sm text-base-content/60 mt-3">
 				No account? <a href="/register" class="link">Register</a>
 			</p>
 		</div>
