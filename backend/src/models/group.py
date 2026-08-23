@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from src.constants import TIME_SLOT_ORDER
 from src.database import Base
 from src.services.requirements import evaluate_group
 
@@ -42,7 +43,7 @@ class Group(Base):
         result = sets[0]
         for s in sets[1:]:
             result = result & s
-        return sorted(result)
+        return [slot for slot in TIME_SLOT_ORDER if slot in result]
 
     @property
     def unmet_requirements(self) -> list[str]:
