@@ -37,6 +37,10 @@ export interface UnitResponse {
 	id: number;
 	code: string;
 	name: string | null;
+	min_group_size: number;
+	max_group_size: number;
+	max_new_students: number | null;
+	time_slots: string[];
 }
 
 export interface UnitMeResponse {
@@ -54,6 +58,18 @@ export interface UnitMembershipResponse {
 	role: string;
 }
 
+export interface UnitMemberResponse {
+	user_id: number;
+	first_name: string;
+	last_name: string;
+	email: string;
+	role: string;
+	is_new_student: boolean;
+	delivery_mode: string | null;
+	skills: string | null;
+	time_preferences: string[];
+}
+
 export interface GroupResponse {
 	id: number;
 	preference_code: string | null;
@@ -61,7 +77,8 @@ export interface GroupResponse {
 	creator_user_id: number | null;
 	is_public: boolean;
 	members: UserResponse[];
-	status: 'valid' | 'provisional';
+	status: 'pending' | 'provisional';
+	unmet_requirements: string[];
 	common_time_slots: string[];
 }
 
@@ -80,7 +97,8 @@ export const api = {
 
 	getMyUnits: () => req<UnitResponse[]>('GET', '/units/me'),
 	joinUnit: (code: string) => req<UnitResponse>('POST', '/units/join', { code }),
-	createUnit: (name?: string) => req<UnitResponse>('POST', '/units/create', { name }),
+	createUnit: (name?: string, timeSlots?: string[]) =>
+		req<UnitResponse>('POST', '/units/create', { name, time_slots: timeSlots }),
 	getMyUnitProfile: (unitId: number) => req<UnitMeResponse>('GET', `/units/${unitId}/me`),
 	updateMyUnitProfile: (
 		unitId: number,
@@ -91,12 +109,10 @@ export const api = {
 			time_preferences: string[];
 		}>
 	) => req<UnitMeResponse>('PATCH', `/units/${unitId}/me`, data),
-	setMemberRole: (unitId: number, email: string, role: 'administrator' | 'student') =>
-		req<UnitMembershipResponse>(
-			'PATCH',
-			`/units/${unitId}/members/${encodeURIComponent(email)}`,
-			{ role }
-		),
+	getUnitMembers: (unitId: number) => req<UnitMemberResponse[]>('GET', `/units/${unitId}/members`),
+	setMemberRole: (unitId: number, userId: number, role: 'administrator' | 'student') =>
+		req<UnitMembershipResponse>('PATCH', `/units/${unitId}/members/${userId}`, { role }),
+	getTimeSlots: () => req<string[]>('GET', '/time-slots'),
 
 	createGroup: (unitId: number, isPublic: boolean) =>
 		req<GroupResponse>('POST', '/groups/create', { unit_id: unitId, is_public: isPublic }),

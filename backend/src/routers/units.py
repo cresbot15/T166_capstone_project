@@ -136,10 +136,16 @@ def update_my_unit_profile(unit_id: int, body: UnitProfileUpdate, db: Session = 
     )
 
 @router.get("/{unit_id}/members", response_model=list[UnitMemberResponse])
-def get_unit_members(unit_id: int, db: Session = Depends(get_db), _staff: UnitMembership = Depends(require_unit_staff)):
-    '''This endpoint is only usable by unit owners and administrators
-    
-    Returns a list of all current current members in the given unit'''
+def get_unit_members(unit_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    '''Usable by any member of the unit (owner, administrator, or student) so
+    students can find others in their unit. Role changes remain owner-only,
+    enforced separately by PATCH /{unit_id}/members/{user_id}.
+
+    Returns a list of all current members in the given unit'''
+    membership = db.query(UnitMembership).filter_by(user_id=current_user.id, unit_id=unit_id).first()
+    if not membership:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enrolled in this unit")
+
     memberships = (
         db.query(UnitMembership, User)
         .join(User, User.id == UnitMembership.user_id)

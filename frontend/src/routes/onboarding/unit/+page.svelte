@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { api } from '$lib/api';
 	import { token, activeUnit } from '$lib/stores';
+	import { defaultTimeSlots } from '$lib/timeslots';
 
 	let mode = $state<'join' | 'create'>('join');
 	let code = $state('');
@@ -34,7 +35,7 @@
 		error = '';
 		loading = true;
 		try {
-			const unit = await api.createUnit(unitName || undefined);
+			const unit = await api.createUnit(unitName || undefined, defaultTimeSlots());
 			activeUnit.set(unit);
 			goto('/onboarding/setup');
 		} catch (e: unknown) {

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import '../app.css';
 	import { onMount } from 'svelte';
+	import { get } from 'svelte/store';
 	import { token, user, activeUnit } from '$lib/stores';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
@@ -24,6 +25,12 @@
 			}
 		}
 		myUnits = await api.getMyUnits();
+
+		const current = get(activeUnit);
+		if (current) {
+			const fresh = myUnits.find((u) => u.id === current.id);
+			if (fresh) activeUnit.set(fresh);
+		}
 	});
 
 	function logout() {

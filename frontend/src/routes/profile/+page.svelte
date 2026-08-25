@@ -65,13 +65,6 @@
 		selectedSlots = next;
 	}
 
-	function logout() {
-		token.clear();
-		user.set(null);
-		activeUnit.clear();
-		goto('/');
-	}
-
 	async function saveProfile(e: SubmitEvent) {
 		e.preventDefault();
 		if (!$activeUnit) return;
@@ -93,14 +86,7 @@
 	}
 </script>
 
-<PageHeader title={`Welcome, ${$user?.first_name ?? ''}!`} subtitle={$user?.email ?? ''}>
-	{#snippet actions()}
-		{#if !editMode}
-			<button class="btn btn-outline btn-sm" onclick={startEdit}>Edit Profile</button>
-		{/if}
-		<button class="btn btn-ghost btn-sm" onclick={logout}>Logout</button>
-	{/snippet}
-</PageHeader>
+<PageHeader title={`Welcome, ${$user?.first_name ?? ''}!`} subtitle={$user?.email ?? ''} />
 
 <div class="max-w-3xl mx-auto px-4 py-8">
 	{#if loading}
@@ -121,7 +107,11 @@
 				</label>
 				<div class="flex flex-col gap-2">
 					<span class="text-sm font-medium">Availability</span>
-					<TimeGrid selected={selectedSlots} onToggle={toggleSlot} />
+					<TimeGrid
+						slots={$activeUnit?.time_slots ?? []}
+						selected={selectedSlots}
+						onToggle={toggleSlot}
+					/>
 				</div>
 				{#if error}<p class="text-error text-sm">{error}</p>{/if}
 				<div class="flex gap-2 mt-1">
@@ -133,12 +123,16 @@
 			</form>
 		</SectionCard>
 	{:else}
-		<div class="grid gap-4 md:grid-cols-2">
+		<div class="flex flex-col gap-4">
 			<SectionCard title="Your Schedule">
 				<p class="text-sm text-base-content/60 mb-3">
 					Times you've indicated you're available to meet.
 				</p>
-				<TimeGrid selected={new Set(unitProfile?.time_preferences ?? [])} readonly />
+				<TimeGrid
+					slots={$activeUnit?.time_slots ?? []}
+					selected={new Set(unitProfile?.time_preferences ?? [])}
+					readonly
+				/>
 			</SectionCard>
 
 			<SectionCard title="Profile Details">
@@ -149,29 +143,29 @@
 					</div>
 					<div>
 						<dt class="text-base-content/60">Skills</dt>
-						<dd class="whitespace-pre-wrap">{unitProfile?.skills ?? '—'}</dd>
+						<dd class="whitespace-pre-wrap break-words">{unitProfile?.skills ?? '—'}</dd>
 					</div>
 				</dl>
 			</SectionCard>
 
-			<div class="md:col-span-2">
-				<SectionCard title="Your Team">
-					{#if successMsg}<p class="text-success text-sm mb-2">{successMsg}</p>{/if}
-					{#if myGroup}
-						<p class="text-sm">
-							You're in Group {myGroup.id} with {myGroup.members.length} member{myGroup.members
-								.length !== 1
-								? 's'
-								: ''}.
-							<a href="/group" class="link">View your group →</a>
-						</p>
-					{:else}
-						<p class="text-sm text-base-content/60">
-							You haven't joined a group yet. <a href="/group" class="link">Create or join one →</a>
-						</p>
-					{/if}
-				</SectionCard>
-			</div>
+			<SectionCard title="Your Team">
+				{#if successMsg}<p class="text-success text-sm mb-2">{successMsg}</p>{/if}
+				{#if myGroup}
+					<p class="text-sm">
+						You're in Group {myGroup.id} with {myGroup.members.length} member{myGroup.members
+							.length !== 1
+							? 's'
+							: ''}.
+						<a href="/group" class="link">View your group →</a>
+					</p>
+				{:else}
+					<p class="text-sm text-base-content/60">
+						You haven't joined a group yet. <a href="/group" class="link">Create or join one →</a>
+					</p>
+				{/if}
+			</SectionCard>
+
+			<button class="btn btn-outline btn-sm self-start" onclick={startEdit}>Edit Profile</button>
 		</div>
 	{/if}
 </div>
