@@ -4,7 +4,7 @@ import io
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
-from src.constants import TIME_SLOT_ORDER
+from src.constants import TIME_SLOT_ORDER, UNIT_ROLE_OWNER, UNIT_ROLE_STUDENT
 from src.database import get_db
 from src.models.group import Group
 from src.models.unit import Unit, UnitMembership, UnitProfile
@@ -19,7 +19,7 @@ from src.schemas.unit import (
     UnitProfileUpdate,
     UnitMeResponse,
 )
-from src.services.auth import get_current_user, require_unit_staff
+from src.services.auth import get_current_user, require_coordinator, require_unit_staff
 from src.services.codes import generate_unit_code
 
 router = APIRouter()
@@ -30,7 +30,7 @@ def get_my_units(current_user: User = Depends(get_current_user)):
     return current_user.units
 
 @router.post("/create", response_model=UnitResponse, status_code=status.HTTP_201_CREATED)
-def create_unit(body: UnitCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def create_unit(body: UnitCreate, db: Session = Depends(get_db), current_user: User = Depends(require_coordinator)):
     '''Attempts to create a unit as the logged in user
     
     The logged in user will added to the unit as its owner'''
@@ -46,7 +46,7 @@ def create_unit(body: UnitCreate, db: Session = Depends(get_db), current_user: U
     db.commit()
     db.refresh(unit)
 
-    db.add(UnitMembership(user_id=current_user.id, unit_id=unit.id, role="owner"))
+    db.add(UnitMembership(user_id=current_user.id, unit_id=unit.id, role=UNIT_ROLE_OWNER))
     db.add(UnitProfile(user_id=current_user.id, unit_id=unit.id))
     db.commit()
 
@@ -62,7 +62,7 @@ def join_unit(body: UnitJoin, db: Session = Depends(get_db), current_user: User 
     if unit in current_user.units:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Already enrolled in unit")
 
-    db.add(UnitMembership(user_id=current_user.id, unit_id=unit.id, role="student"))
+    db.add(UnitMembership(user_id=current_user.id, unit_id=unit.id, role=UNIT_ROLE_STUDENT))
     db.add(UnitProfile(user_id=current_user.id, unit_id=unit.id))
     db.commit()
     return unit
@@ -177,7 +177,7 @@ def get_unit_members(unit_id: int, db: Session = Depends(get_db), current_user: 
 def set_member_role(unit_id: int, user_id: int, body: UnitRoleUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     '''This endpoint is only usable by unit owners and administrators'''
     caller_membership = db.query(UnitMembership).filter_by(user_id=current_user.id, unit_id=unit_id).first()
-    if not caller_membership or caller_membership.role != "owner":
+    if not caller_membership or caller_membership.role != UNIT_ROLE_OWNER:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the unit owner can change member roles")
 
     target_user = db.query(User).filter(User.id == user_id).first()
@@ -188,7 +188,7 @@ def set_member_role(unit_id: int, user_id: int, body: UnitRoleUpdate, db: Sessio
     if not membership:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User is not enrolled in this unit")
 
-    if membership.role == "owner":
+    if membership.role == UNIT_ROLE_OWNER:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot change the owner's role")
 
     membership.role = body.role
@@ -206,7 +206,7 @@ def get_student_count(unit_id: int, db: Session = Depends(get_db), current_user:
     if not caller_membership:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is not enrolled in this unit")
 
-    student_count = db.query(UnitMembership).filter_by(unit_id=unit_id, role="student").count()
+    student_count = db.query(UnitMembership).filter_by(unit_id=unit_id, role=UNIT_ROLE_STUDENT).count()
 
     return {"student_count": student_count}
 

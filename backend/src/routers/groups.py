@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
-from src.constants import TIME_SLOT_ORDER
+from src.constants import TIME_SLOT_ORDER, UNIT_STAFF_ROLES
 from src.database import get_db
 from src.models.group import Group, GroupMembership
 from src.models.unit import Unit, UnitMembership
@@ -98,7 +98,7 @@ def get_groups(unit_id: int, db: Session = Depends(get_db), current_user: User =
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enrolled in this unit")
 
     query = db.query(Group).filter(Group.unit_id == unit_id)
-    if membership.role not in ("owner", "administrator"):
+    if membership.role not in UNIT_STAFF_ROLES:
         member_group_ids = [g.id for g in current_user.groups if g.unit_id == unit_id]
         query = query.filter(or_(Group.is_public == True, Group.id.in_(member_group_ids)))
 
