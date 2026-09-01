@@ -4,6 +4,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from src.constants import USER_ROLE_COORDINATOR, USER_ROLE_STUDENT
 from src.database import Base, get_db
 from src.main import app
 
@@ -43,12 +44,15 @@ def client():
 
 @pytest.fixture()
 def make_user(client):
-    def _make_user(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD):
+    # Defaults to coordinator so tests that create units need no extra setup;
+    # enrol_user overrides it, so students created for group tests stay students.
+    def _make_user(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD, role=USER_ROLE_COORDINATOR):
         body = {
             "first_name": TEST_USER_FNAME,
             "last_name": TEST_USER_LNAME,
             "email": email,
             "password": password,
+            "role": role,
         }
         r = client.post("/auth/register", json=body)
         assert r.status_code == 200, r.text
@@ -58,8 +62,8 @@ def make_user(client):
 
 @pytest.fixture()
 def auth_headers(client, make_user):
-    def _auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD):
-        make_user(email=email, password=password)
+    def _auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD, role=USER_ROLE_COORDINATOR):
+        make_user(email=email, password=password, role=role)
         body = {
             "email": email,
             "password": password
@@ -100,8 +104,8 @@ def join_unit(client):
 
 @pytest.fixture()
 def enrol_user(auth_headers, join_unit):
-    def _enrol_user(code, email, password=TEST_USER_PASSWORD):
-        headers = auth_headers(email=email, password=password)
+    def _enrol_user(code, email, password=TEST_USER_PASSWORD, role=USER_ROLE_STUDENT):
+        headers = auth_headers(email=email, password=password, role=role)
         join_unit(headers, code)
         return headers
 

@@ -8,6 +8,8 @@ from src.constants import (
     MIN_MAX_GROUP_SIZE,
     MIN_MIN_GROUP_SIZE,
     TIME_SLOT_ORDER,
+    USER_ROLE_COORDINATOR,
+    USER_ROLE_STUDENT,
 )
 from src.routers.units import EXPORT_COLUMNS
 from src.services.requirements import MIN_GROUP_SIZE
@@ -37,6 +39,18 @@ def test_create_unit(client, auth_headers):
     assert response_body["name"] == TEST_UNIT_NAME
     assert response_body["min_group_size"] == TEST_MIN_GROUP_SIZE
     assert response_body["max_group_size"] == TEST_MAX_GROUP_SIZE
+
+def test_create_unit_requires_the_coordinator_role(client, auth_headers):
+    headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD, role=USER_ROLE_STUDENT)
+
+    response = client.post("/units/create", headers=headers, json={"name": TEST_UNIT_NAME})
+    assert response.status_code == 403, response.text
+
+def test_create_unit_allowed_for_coordinators(client, auth_headers):
+    headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD, role=USER_ROLE_COORDINATOR)
+
+    response = client.post("/units/create", headers=headers, json={"name": TEST_UNIT_NAME})
+    assert response.status_code == 201, response.text
 
 def test_create_unit_defaults_group_sizes(client, auth_headers):
     headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
