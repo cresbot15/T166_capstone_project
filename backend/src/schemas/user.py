@@ -1,5 +1,6 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 
+from src.constants import USER_ROLE_STUDENT, USER_ROLES
 from src.schemas.types import UtcDatetime
 
 class UserRegister(BaseModel):
@@ -7,6 +8,14 @@ class UserRegister(BaseModel):
     last_name: str
     email: EmailStr
     password: str
+    role: str = USER_ROLE_STUDENT
+
+    @field_validator("role")
+    @classmethod
+    def validate_role(cls, v: str) -> str:
+        if v not in USER_ROLES:
+            raise ValueError(f"role must be one of {list(USER_ROLES)}")
+        return v
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -23,6 +32,7 @@ class UserResponse(BaseModel):
     first_name: str
     last_name: str
     email: EmailStr
+    role: str
     created_at: UtcDatetime
 
 class TokenResponse(BaseModel):
