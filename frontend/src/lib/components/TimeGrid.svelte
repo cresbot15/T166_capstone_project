@@ -1,11 +1,38 @@
 <script lang="ts">
-	import { DAYS, PERIODS } from '$lib/timeslots';
+	import { DAYS, parseSlot, slotId, formatHour, formatSlot } from '$lib/timeslots';
 
 	let {
+		slots,
 		selected,
 		readonly = false,
 		onToggle
-	}: { selected: Set<string>; readonly?: boolean; onToggle?: (slot: string) => void } = $props();
+	}: {
+		slots: string[];
+		selected: Set<string>;
+		readonly?: boolean;
+		onToggle?: (slot: string) => void;
+	} = $props();
+
+	const hoursByDay = $derived.by(() => {
+		const map = new Map<string, Set<number>>();
+		for (const slot of slots) {
+			const { day, hour } = parseSlot(slot);
+			if (!map.has(day)) map.set(day, new Set());
+			map.get(day)!.add(hour);
+		}
+		return map;
+	});
+
+	const days = $derived(DAYS.filter((day) => hoursByDay.has(day)));
+
+	// Only the hours actually offered get a column — a unit offering a narrow
+	// range (e.g. 9am-6pm) shouldn't render a full 24-wide grid padded with
+	// unusable blank columns either side.
+	const hours = $derived.by(() => {
+		const set = new Set<number>();
+		for (const slot of slots) set.add(parseSlot(slot).hour);
+		return Array.from(set).sort((a, b) => a - b);
+	});
 
 	function dayLabel(day: string): string {
 		return day.charAt(0).toUpperCase() + day.slice(1);
@@ -13,42 +40,43 @@
 </script>
 
 <div class="overflow-x-auto">
-	<table class="table table-sm">
-		<thead>
-			<tr>
-				<th></th>
-				{#each PERIODS as period}
-					<th class="text-center font-medium text-base-content/60">{period}</th>
-				{/each}
-			</tr>
-		</thead>
-		<tbody>
-			{#each DAYS as day}
-				<tr>
-					<td class="text-sm text-base-content/70 pr-4">{dayLabel(day)}</td>
-					{#each PERIODS as period}
-						{@const slot = `${day}${period}`}
-						<td class="text-center">
-							{#if readonly}
-								<span
-									class="text-sm {selected.has(slot)
-										? 'text-primary font-semibold'
-										: 'text-base-content/20'}"
-								>
-									{selected.has(slot) ? '✓' : '·'}
-								</span>
-							{:else}
-								<input
-									type="checkbox"
-									class="checkbox checkbox-sm checkbox-primary"
-									checked={selected.has(slot)}
-									onchange={() => onToggle?.(slot)}
-								/>
-							{/if}
-						</td>
-					{/each}
-				</tr>
+	<div
+		class="inline-grid gap-0.5"
+		style="grid-template-columns: auto repeat({hours.length}, 1.25rem);"
+	>
+		<div></div>
+		{#each hours as hour}
+			<div class="text-[10px] font-normal text-base-content/50 text-center">
+				{hour % 3 === 0 ? formatHour(hour) : ''}
+			</div>
+		{/each}
+
+		{#each days as day}
+			<div class="text-xs text-base-content/70 pr-2 whitespace-nowrap self-center">
+				{dayLabel(day)}
+			</div>
+			{#each hours as hour}
+				{@const offered = hoursByDay.get(day)?.has(hour) ?? false}
+				{@const slot = slotId(day, hour)}
+				{#if !offered}
+					<div class="w-5 h-5"></div>
+				{:else if readonly}
+					<div
+						class="w-5 h-5 rounded {selected.has(slot) ? 'bg-accent' : 'bg-base-200'}"
+						title={formatSlot(slot)}
+					></div>
+				{:else}
+					<button
+						type="button"
+						class="w-5 h-5 rounded transition-colors {selected.has(slot)
+							? 'bg-accent'
+							: 'bg-base-200 hover:bg-base-300'}"
+						aria-pressed={selected.has(slot)}
+						title={formatSlot(slot)}
+						onclick={() => onToggle?.(slot)}
+					></button>
+				{/if}
 			{/each}
-		</tbody>
-	</table>
+		{/each}
+	</div>
 </div>

@@ -89,7 +89,11 @@
 
 				<div class="flex flex-col gap-2">
 					<span class="text-sm font-medium">Availability</span>
-					<TimeGrid selected={selectedSlots} onToggle={toggleSlot} />
+					<TimeGrid
+						slots={$activeUnit?.time_slots ?? []}
+						selected={selectedSlots}
+						onToggle={toggleSlot}
+					/>
 				</div>
 
 				<!--

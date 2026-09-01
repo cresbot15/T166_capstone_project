@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { api, type GroupResponse } from '$lib/api';
+	import { api, type GroupResponse, type UnitResponse } from '$lib/api';
 	import { token, activeUnit } from '$lib/stores';
 	import { formatSlot } from '$lib/timeslots';
 	import PageHeader from '$lib/components/PageHeader.svelte';
@@ -17,6 +17,12 @@
 	let creating = $state(false);
 	let joining = $state(false);
 	let leaving = $state(false);
+
+	const REQUIREMENT_LABELS: Record<string, (unit: UnitResponse) => string> = {
+		min_group_size: (unit) => `Needs at least ${unit.min_group_size} members.`,
+		common_time_slot: () => 'No time slot is shared by all members yet.',
+		max_new_students: (unit) => `Too many new students for this group (unit max: ${unit.max_new_students}).`
+	};
 
 	onMount(async () => {
 		if (!$token) {
@@ -35,7 +41,7 @@
 		if (!$activeUnit) return;
 		const groups = await api.getMyGroups();
 		group = groups.find((g) => g.unit_id === $activeUnit!.id) ?? null;
-		if (group && group.status === 'provisional') {
+		if (group && group.unmet_requirements.includes('common_time_slot')) {
 			recommendedTimes = await api.getRecommendedTimes($activeUnit.id, group.id);
 		} else {
 			recommendedTimes = [];
@@ -143,8 +149,8 @@
 		<SectionCard>
 			<div class="flex items-center justify-between mb-3">
 				<h1 class="text-xl font-bold">Group {group.id}</h1>
-				<span class="badge {group.status === 'valid' ? 'badge-success' : 'badge-warning'} badge-lg">
-					{group.status === 'valid' ? 'Valid' : 'Provisional'}
+				<span class="badge {group.status === 'pending' ? 'badge-success' : 'badge-warning'} badge-lg">
+					{group.status === 'pending' ? 'Ready' : 'Provisional'}
 				</span>
 			</div>
 
@@ -159,7 +165,12 @@
 			{#if group.status === 'provisional'}
 				<div role="alert" class="alert alert-warning mb-4">
 					<div class="flex flex-col gap-2 text-sm">
-						<p><strong>Provisional</strong>: no time slot is shared by all members yet.</p>
+						<p><strong>Provisional</strong>:</p>
+						<ul class="list-disc list-inside">
+							{#each group.unmet_requirements as req}
+								<li>{$activeUnit ? REQUIREMENT_LABELS[req]?.($activeUnit) ?? req : req}</li>
+							{/each}
+						</ul>
 						{#if recommendedTimes.length > 0}
 							<p>Recommended times shared by other members:</p>
 							<ul class="list-disc list-inside">
@@ -180,7 +191,7 @@
 			{#if error}<p class="text-error text-sm mb-2">{error}</p>{/if}
 
 			<div class="divider"></div>
-			<h2 class="font-bold mb-2">Members ({group.members.length}/5)</h2>
+			<h2 class="font-bold mb-2">Members ({group.members.length}/{$activeUnit?.max_group_size ?? '?'})</h2>
 			<ul class="divide-y divide-base-200">
 				{#each group.members as member}
 					<li class="py-2 text-sm">{member.first_name} {member.last_name}</li>

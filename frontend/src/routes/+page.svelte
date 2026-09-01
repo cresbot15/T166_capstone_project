@@ -29,8 +29,8 @@
 				return;
 			}
 			const current = get(activeUnit);
-			const stillValid = current && units.some((u) => u.id === current.id);
-			activeUnit.set(stillValid ? current : units[0]);
+			const stillValid = current && units.find((u) => u.id === current.id);
+			activeUnit.set(stillValid || units[0]);
 			goto('/home');
 		} catch (e: unknown) {
 			error = e instanceof Error ? e.message : 'Login failed';

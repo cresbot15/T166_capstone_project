@@ -2,23 +2,17 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { token, activeUnit } from '$lib/stores';
-	import { api, type GroupResponse } from '$lib/api';
-	import { mockStudents, type MockStudent } from '$lib/mockStudents';
+	import { api, type GroupResponse, type UnitMemberResponse } from '$lib/api';
 	import PageHeader from '$lib/components/PageHeader.svelte';
-	import StatusPill from '$lib/components/StatusPill.svelte';
-
-	// Explore's student directory is mocked: no backend endpoint lists a unit's
-	// students with degree/skills/group status (see design spec Non-goals). The
-	// role-change call below is real (PATCH /units/{id}/members/{email}) but is
-	// applied against these mock rows' emails, which won't correspond to real
-	// unit members. The groups section below, by contrast, is entirely real —
-	// GET /groups/{unit_id} and the join call both hit the live backend.
 
 	let view = $state<'students' | 'groups'>('students');
 	let search = $state('');
-	let degreeFilter = $state('All');
 	let isOwner = $state(false);
+	let isStaff = $state(false);
 	let roleUpdateError = $state('');
+
+	let members = $state<UnitMemberResponse[]>([]);
+	let membersError = $state('');
 
 	let groups = $state<GroupResponse[]>([]);
 	let myGroups = $state<GroupResponse[]>([]);
@@ -26,12 +20,9 @@
 	let joiningGroupId = $state<number | null>(null);
 	let myTimePreferences = $state<string[]>([]);
 
-	// Mirrors the join-size cap enforced server-side (backend/src/routers/groups.py);
-	// kept as a named constant here so the "has open spots" filter can't silently drift from it.
-	const MAX_GROUP_SIZE = 5;
-
 	let filtersOpen = $state(false);
-	let statusFilter = $state<'all' | 'valid' | 'provisional'>('all');
+	let statusFilter = $state<'all' | 'pending' | 'provisional'>('all');
+	let typeFilter = $state<'all' | 'public' | 'private'>('all');
 	let openSlotsOnly = $state(false);
 	let matchesMyAvailability = $state(false);
 
@@ -40,7 +31,9 @@
 	const groupFilters = $derived(
 		[
 			statusFilter !== 'all' && ((g: GroupResponse) => g.status === statusFilter),
-			openSlotsOnly && ((g: GroupResponse) => g.members.length < MAX_GROUP_SIZE),
+			typeFilter !== 'all' && ((g: GroupResponse) => g.is_public === (typeFilter === 'public')),
+			openSlotsOnly &&
+				((g: GroupResponse) => g.members.length < ($activeUnit?.max_group_size ?? Infinity)),
 			matchesMyAvailability &&
 				((g: GroupResponse) => g.common_time_slots.some((slot) => myTimePreferences.includes(slot)))
 		].filter((f): f is (g: GroupResponse) => boolean => f !== false)
@@ -48,18 +41,34 @@
 
 	const filteredGroups = $derived(groups.filter((g) => groupFilters.every((f) => f(g))));
 	const activeFilterCount = $derived(
-		(statusFilter !== 'all' ? 1 : 0) + (openSlotsOnly ? 1 : 0) + (matchesMyAvailability ? 1 : 0)
+		(statusFilter !== 'all' ? 1 : 0) +
+			(typeFilter !== 'all' ? 1 : 0) +
+			(openSlotsOnly ? 1 : 0) +
+			(matchesMyAvailability ? 1 : 0)
 	);
 
-	const degrees = $derived(['All', ...new Set(mockStudents.map((s) => s.degree))]);
-
-	const filtered = $derived(
-		mockStudents.filter((s) => {
-			const matchesSearch = s.name.toLowerCase().includes(search.toLowerCase());
-			const matchesDegree = degreeFilter === 'All' || s.degree === degreeFilter;
-			return matchesSearch && matchesDegree;
-		})
+	const filteredMembers = $derived(
+		members.filter((m) =>
+			`${m.first_name} ${m.last_name}`.toLowerCase().includes(search.toLowerCase())
+		)
 	);
+
+	// Owners/admins see every group for the unit (public and private), so this
+	// cross-reference is complete for anyone who can see the Students panel at all.
+	const groupStatusByUserId = $derived.by(() => {
+		const map = new Map<number, GroupResponse['status']>();
+		for (const g of groups) {
+			for (const m of g.members) map.set(m.id, g.status);
+		}
+		return map;
+	});
+
+	function membershipLabel(userId: number): { text: string; badgeClass: string } {
+		const status = groupStatusByUserId.get(userId);
+		if (!status) return { text: 'Not in a group', badgeClass: 'badge-ghost' };
+		if (status === 'pending') return { text: 'In a group', badgeClass: 'badge-success' };
+		return { text: 'In a provisional group', badgeClass: 'badge-warning' };
+	}
 
 	const myGroupIdForUnit = $derived(
 		myGroups.find((g) => g.unit_id === $activeUnit?.id)?.id ?? null
@@ -77,9 +86,16 @@
 		try {
 			const profile = await api.getMyUnitProfile($activeUnit.id);
 			isOwner = profile.role === 'owner';
+			isStaff = profile.role === 'owner' || profile.role === 'administrator';
 			myTimePreferences = profile.time_preferences;
 		} catch {
 			isOwner = false;
+			isStaff = false;
+		}
+		try {
+			members = await api.getUnitMembers($activeUnit.id);
+		} catch (e: unknown) {
+			membersError = e instanceof Error ? e.message : 'Could not load members';
 		}
 		try {
 			[groups, myGroups] = await Promise.all([api.getGroups($activeUnit.id), api.getMyGroups()]);
@@ -88,11 +104,12 @@
 		}
 	});
 
-	async function changeRole(student: MockStudent, role: 'administrator' | 'student') {
+	async function changeRole(member: UnitMemberResponse, role: 'administrator' | 'student') {
 		if (!$activeUnit) return;
 		roleUpdateError = '';
 		try {
-			await api.setMemberRole($activeUnit.id, student.email, role);
+			const updated = await api.setMemberRole($activeUnit.id, member.user_id, role);
+			members = members.map((m) => (m.user_id === member.user_id ? { ...m, role: updated.role } : m));
 		} catch (e: unknown) {
 			roleUpdateError = e instanceof Error ? e.message : 'Could not update role';
 		}
@@ -146,52 +163,61 @@
 	<div class="grid gap-8 md:grid-cols-2">
 		<div class="{view === 'students' ? 'block' : 'hidden'} md:block">
 			<h2 class="font-bold text-lg mb-3">Students</h2>
-			<div class="flex gap-3 mb-4">
-				<input
-					type="text"
-					class="input input-bordered flex-1"
-					placeholder="Search for students"
-					bind:value={search}
-				/>
-				<select class="select select-bordered" bind:value={degreeFilter}>
-					{#each degrees as degree}
-						<option value={degree}>{degree}</option>
-					{/each}
-				</select>
-			</div>
+
+			<input
+				type="text"
+				class="input input-bordered w-full mb-4"
+				placeholder="Search for students"
+				bind:value={search}
+			/>
 
 			{#if roleUpdateError}<p class="text-error text-sm mb-2">{roleUpdateError}</p>{/if}
+			{#if membersError}<p class="text-error text-sm mb-2">{membersError}</p>{/if}
 
 			<div class="flex flex-col gap-3">
-				{#each filtered as student}
+				{#each filteredMembers as member}
+					{@const membership = membershipLabel(member.user_id)}
 					<div class="card bg-base-100 shadow-sm rounded-2xl">
-						<div class="card-body flex-row items-center justify-between">
-							<div>
-								<p class="font-bold">{student.name}</p>
-								<p class="text-sm text-base-content/60">Degree: {student.degree}</p>
-								<p class="text-sm text-base-content/60">Skills: {student.skills}</p>
+						<div class="card-body flex-row items-center justify-between gap-4">
+							<div class="min-w-0 flex-1">
+								<p class="font-bold">{member.first_name} {member.last_name}</p>
+								<p class="text-sm text-base-content/60">
+									Delivery: {member.delivery_mode ?? '—'}
+								</p>
+								<p class="text-sm text-base-content/60 break-words">
+									Skills: {member.skills || '—'}
+								</p>
+								<span class="badge {membership.badgeClass} badge-sm mt-1">{membership.text}</span>
 							</div>
-							<div class="flex items-center gap-3">
-								<StatusPill status={student.status} />
-								{#if isOwner}
+							<div class="flex flex-col items-end gap-2 flex-shrink-0">
+								{#if member.is_new_student}
+									<span class="badge badge-accent badge-sm whitespace-nowrap">New student</span>
+								{/if}
+								{#if isOwner && member.role !== 'owner'}
 									<select
 										class="select select-bordered select-sm"
+										value={member.role}
 										onchange={(e) =>
-											changeRole(student, e.currentTarget.value as 'administrator' | 'student')}
+											changeRole(member, e.currentTarget.value as 'administrator' | 'student')}
 									>
 										<option value="student">Student</option>
 										<option value="administrator">Administrator</option>
 									</select>
+								{:else}
+									<span class="badge badge-ghost capitalize">{member.role}</span>
 								{/if}
 							</div>
 						</div>
 					</div>
 				{/each}
+				{#if members.length === 0}
+					<p class="text-sm text-base-content/60">No members in this unit yet.</p>
+				{/if}
 			</div>
 		</div>
 
 		<div class="{view === 'groups' ? 'block' : 'hidden'} md:block">
-			<h2 class="font-bold text-lg mb-3">Public Groups</h2>
+			<h2 class="font-bold text-lg mb-3">{isStaff ? 'Groups' : 'Public Groups'}</h2>
 
 			<button
 				type="button"
@@ -210,10 +236,20 @@
 							<span class="text-sm font-medium">Status</span>
 							<select class="select select-bordered select-sm" bind:value={statusFilter}>
 								<option value="all">All</option>
-								<option value="valid">Valid</option>
+								<option value="pending">Ready</option>
 								<option value="provisional">Provisional</option>
 							</select>
 						</label>
+						{#if isStaff}
+							<label class="flex flex-col gap-1">
+								<span class="text-sm font-medium">Group type</span>
+								<select class="select select-bordered select-sm" bind:value={typeFilter}>
+									<option value="all">All</option>
+									<option value="public">Public</option>
+									<option value="private">Private</option>
+								</select>
+							</label>
+						{/if}
 						<label class="flex items-center gap-2">
 							<input type="checkbox" class="checkbox checkbox-sm" bind:checked={openSlotsOnly} />
 							<span class="text-sm">Has open spots</span>
@@ -236,19 +272,28 @@
 					{@const isMine = g.id === myGroupIdForUnit}
 					{@const blocked = myGroupIdForUnit !== null && !isMine}
 					<div class="card bg-base-100 shadow-sm rounded-2xl">
-						<div class="card-body flex-row items-center justify-between">
-							<div>
+						<div class="card-body flex-row items-center justify-between gap-4">
+							<div class="min-w-0 flex-1">
 								<p class="font-bold">Group {g.preference_code}</p>
 								<p class="text-sm text-base-content/60">
 									{g.members.map((m) => m.first_name).join(', ') || 'No members yet'}
 								</p>
 							</div>
-							<div class="flex items-center gap-3">
-								<span class="badge {g.status === 'valid' ? 'badge-success' : 'badge-warning'}">
-									{g.status === 'valid' ? 'Valid' : 'Provisional'}
+							<div class="flex items-center flex-wrap justify-end gap-2 flex-shrink-0">
+								{#if isStaff}
+									<span class="badge badge-ghost whitespace-nowrap"
+										>{g.is_public ? 'Public' : 'Private'}</span
+									>
+								{/if}
+								<span
+									class="badge whitespace-nowrap {g.status === 'pending'
+										? 'badge-success'
+										: 'badge-warning'}"
+								>
+									{g.status === 'pending' ? 'Ready' : 'Provisional'}
 								</span>
 								{#if isMine}
-									<span class="badge badge-ghost">Your Group</span>
+									<span class="badge badge-ghost whitespace-nowrap">Your Group</span>
 								{:else if blocked}
 									<div
 										class="tooltip"
