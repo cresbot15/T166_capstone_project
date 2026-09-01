@@ -36,3 +36,14 @@ npm run dev
 ```
 
 App runs at **http://localhost:5173**
+
+# Seeding test data
+
+The following script seeds the API database with test data:
+
+```bash
+cd backend
+uv run python -m scripts.seed
+```
+
+Multiple runs of the script will add further test units, users, and groups
