@@ -1,8 +1,14 @@
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String
+from sqlalchemy import JSON, Boolean, DateTime, Enum, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from src.constants import DEFAULT_MAX_GROUP_SIZE, DEFAULT_MIN_GROUP_SIZE, TIME_SLOT_ORDER
+from src.constants import (
+    DEFAULT_MAX_GROUP_SIZE,
+    DEFAULT_MIN_GROUP_SIZE,
+    TIME_SLOT_ORDER,
+    UNIT_ROLE_STUDENT,
+    UNIT_ROLES,
+)
 from src.database import Base
 from src.services.timestamps import utc_now
 
@@ -12,7 +18,7 @@ class UnitMembership(Base):
 
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
     unit_id: Mapped[int] = mapped_column(ForeignKey("units.id"), primary_key=True)
-    role: Mapped[str] = mapped_column(String, default="student")
+    role: Mapped[str] = mapped_column(Enum(*UNIT_ROLES, name="unit_role"), default=UNIT_ROLE_STUDENT)
 
     user = relationship("User", back_populates="unit_memberships")
     unit = relationship("Unit", back_populates="unit_memberships")
