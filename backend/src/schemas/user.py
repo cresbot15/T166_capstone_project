@@ -1,5 +1,7 @@
 from pydantic import BaseModel, EmailStr
 
+from src.schemas.types import UtcDatetime
+
 class UserRegister(BaseModel):
     first_name: str
     last_name: str
@@ -21,6 +23,7 @@ class UserResponse(BaseModel):
     first_name: str
     last_name: str
     email: EmailStr
+    created_at: UtcDatetime
 
 class TokenResponse(BaseModel):
     access_token: str
