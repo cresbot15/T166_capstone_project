@@ -19,7 +19,7 @@ from src.schemas.unit import (
     UnitProfileUpdate,
     UnitMeResponse,
 )
-from src.services.auth import get_current_user, require_unit_staff
+from src.services.auth import get_current_user, require_coordinator, require_unit_staff
 from src.services.codes import generate_unit_code
 
 router = APIRouter()
@@ -30,7 +30,7 @@ def get_my_units(current_user: User = Depends(get_current_user)):
     return current_user.units
 
 @router.post("/create", response_model=UnitResponse, status_code=status.HTTP_201_CREATED)
-def create_unit(body: UnitCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def create_unit(body: UnitCreate, db: Session = Depends(get_db), current_user: User = Depends(require_coordinator)):
     '''Attempts to create a unit as the logged in user
     
     The logged in user will added to the unit as its owner'''

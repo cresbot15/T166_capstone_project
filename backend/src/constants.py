@@ -1,6 +1,6 @@
 # Account-level roles
 USER_ROLE_STUDENT = "student"
-USER_ROLE_COORDINATOR = "coordinator"
+USER_ROLE_COORDINATOR = "unit_coordinator"
 USER_ROLES: tuple[str, ...] = (USER_ROLE_STUDENT, USER_ROLE_COORDINATOR)
 
 UNIT_ROLE_OWNER = "owner"
