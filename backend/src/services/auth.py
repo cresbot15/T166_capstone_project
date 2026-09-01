@@ -1,6 +1,6 @@
 import os
 import bcrypt
-from datetime import datetime, timedelta
+from datetime import timedelta
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer
 from jose import jwt, JWTError
@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from src.database import get_db
 from src.models.unit import UnitMembership
 from src.models.user import User
+from src.services.timestamps import utc_now
 
 security = HTTPBearer()
 
@@ -29,7 +30,7 @@ def create_token(user_id: int) -> str:
     secret = get_jwt_secret()
     payload = {
         "id": user_id,
-        "exp": datetime.now() + timedelta(hours=24)
+        "exp": utc_now() + timedelta(hours=24)
     }
     return jwt.encode(payload, secret, algorithm="HS256")
 
