@@ -9,6 +9,7 @@ from src.constants import (
     TIME_SLOT_ORDER,
     TIME_SLOTS,
 )
+from src.schemas.types import UtcDatetime
 
 class UnitCreate(BaseModel):
     name: str | None = None
@@ -55,6 +56,7 @@ class UnitResponse(BaseModel):
     max_group_size: int
     max_new_students: int | None = None
     time_slots: list[str] = []
+    created_at: UtcDatetime
 
 class UnitRoleUpdate(BaseModel):
     role: Literal["administrator", "student"]

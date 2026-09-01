@@ -1,4 +1,5 @@
 from pydantic import BaseModel, field_validator
+from src.schemas.types import UtcDatetime
 from src.schemas.user import UserResponse
 
 class GroupJoin(BaseModel):
@@ -22,6 +23,7 @@ class GroupResponse(BaseModel):
     status: str = "provisional"
     unmet_requirements: list[str] = []
     common_time_slots: list[str] = []
+    created_at: UtcDatetime
 
 class GroupJoinResponse(BaseModel):
     valid: bool
