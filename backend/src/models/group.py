@@ -20,6 +20,7 @@ class GroupMembership(Base):
 
 class Group(Base):
     __tablename__ = "groups"
+    __table_args__ = {"sqlite_autoincrement": True}
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     preference_code: Mapped[str | None] = mapped_column(String, unique=True)

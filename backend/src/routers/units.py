@@ -4,7 +4,14 @@ import io
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
-from src.constants import TIME_SLOT_ORDER, UNIT_ROLE_OWNER, UNIT_ROLE_STUDENT
+from src.constants import (
+    TIME_SLOT_ORDER,
+    UNIT_EVENT_MEMBER_JOINED,
+    UNIT_EVENT_MEMBER_LEFT,
+    UNIT_EVENT_ROLE_CHANGED,
+    UNIT_ROLE_OWNER,
+    UNIT_ROLE_STUDENT,
+)
 from src.database import get_db
 from src.models.group import Group
 from src.models.unit import Unit, UnitMembership, UnitProfile
@@ -19,6 +26,7 @@ from src.schemas.unit import (
     UnitProfileUpdate,
     UnitMeResponse,
 )
+from src.services.audit import record
 from src.services.auth import get_current_user, require_coordinator, require_unit_staff
 from src.services.codes import generate_unit_code
 
@@ -48,6 +56,7 @@ def create_unit(body: UnitCreate, db: Session = Depends(get_db), current_user: U
 
     db.add(UnitMembership(user_id=current_user.id, unit_id=unit.id, role=UNIT_ROLE_OWNER))
     db.add(UnitProfile(user_id=current_user.id, unit_id=unit.id))
+    record(db, unit.id, UNIT_EVENT_MEMBER_JOINED, actor_user_id=current_user.id)
     db.commit()
 
     return unit
@@ -64,6 +73,7 @@ def join_unit(body: UnitJoin, db: Session = Depends(get_db), current_user: User 
 
     db.add(UnitMembership(user_id=current_user.id, unit_id=unit.id, role=UNIT_ROLE_STUDENT))
     db.add(UnitProfile(user_id=current_user.id, unit_id=unit.id))
+    record(db, unit.id, UNIT_EVENT_MEMBER_JOINED, actor_user_id=current_user.id)
     db.commit()
     return unit
 
@@ -82,6 +92,7 @@ def leave_unit(unit_id: int, db: Session = Depends(get_db), current_user: User =
     profile = db.query(UnitProfile).filter_by(user_id=current_user.id, unit_id=unit_id).first()
     db.delete(profile)
 
+    record(db, unit_id, UNIT_EVENT_MEMBER_LEFT, actor_user_id=current_user.id)
     db.commit()
 
 @router.get("/{unit_id}/me", response_model=UnitMeResponse)
@@ -191,7 +202,16 @@ def set_member_role(unit_id: int, user_id: int, body: UnitRoleUpdate, db: Sessio
     if membership.role == UNIT_ROLE_OWNER:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot change the owner's role")
 
+    previous_role = membership.role
     membership.role = body.role
+    record(
+        db,
+        unit_id,
+        UNIT_EVENT_ROLE_CHANGED,
+        actor_user_id=current_user.id,
+        subject_user_id=target_user.id,
+        detail={"from": previous_role, "to": body.role},
+    )
     db.commit()
     db.refresh(membership)
     return membership

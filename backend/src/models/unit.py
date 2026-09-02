@@ -40,6 +40,7 @@ class UnitProfile(Base):
 
 class Unit(Base):
     __tablename__ = "units"
+    __table_args__ = {"sqlite_autoincrement": True}
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     code: Mapped[str] = mapped_column(String, unique=True, index=True)
