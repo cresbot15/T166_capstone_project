@@ -19,14 +19,13 @@ def _group_in_unit_or_404(db: Session, unit_id: int, group_id: int) -> Group:
     return group
 
 def _remove_member(db: Session, group: Group, user_id: int) -> None:
-    """Removes a member, deleting the group if they were the last one."""
+    """Removes a member from a group.
+
+    An empty group cannot be joined.
+    """
     membership = db.query(GroupMembership).filter_by(user_id=user_id, group_id=group.id).first()
     db.delete(membership)
     db.commit()
-
-    if len(group.members) == 0:
-        db.delete(group)
-        db.commit()
 
 @router.post("/join", response_model=GroupJoinResponse)
 def join_group(body: GroupJoin, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -42,6 +41,9 @@ def join_group(body: GroupJoin, db: Session = Depends(get_db), current_user: Use
 
     if group.unit not in current_user.units:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is not enrolled in this unit")
+
+    if not group.members:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Group is no longer active")
 
     if len(group.members) >= group.unit.max_group_size:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Group is full")
@@ -121,7 +123,7 @@ def get_joinable_groups(unit_id: int, db: Session = Depends(get_db), current_use
     return [
         GroupResponse.model_validate(g)
         for g in groups
-        if g.id not in own_group_ids and len(g.members) < unit.max_group_size
+        if g.id not in own_group_ids and 0 < len(g.members) < unit.max_group_size
     ]
 
 @router.get("/{unit_id}/{group_id}/recommended-times", response_model=list[str])

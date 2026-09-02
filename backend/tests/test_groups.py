@@ -272,7 +272,7 @@ def test_staff_can_remove_a_member_from_a_group(client, auth_headers, create_uni
 
     assert _member_ids(client, owner_headers, unit["id"], group["id"]) == [member_ids[0]]
 
-def test_removing_the_last_member_deletes_the_group(client, auth_headers, create_unit, enrol_user, create_group):
+def test_removing_the_last_member_keeps_the_group(client, auth_headers, create_unit, enrol_user, create_group, get_group):
     owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
     unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME)
 
@@ -284,9 +284,51 @@ def test_removing_the_last_member_deletes_the_group(client, auth_headers, create
     response = client.delete(f"/groups/{unit['id']}/{group['id']}/members/{member_ids[0]}", headers=owner_headers)
     assert response.status_code == 204, response.text
 
-    response = client.get(f"/groups/{unit['id']}", headers=owner_headers)
-    assert response.status_code == 200, response.text
-    assert response.json() == []
+    emptied = get_group(owner_headers, unit["id"], group["id"])
+    assert emptied["members"] == []
+    assert emptied["preference_code"] == group["preference_code"]
+
+def test_leaving_as_the_last_member_keeps_the_group(client, auth_headers, create_unit, enrol_user, create_group, get_group):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME)
+
+    creator_headers = enrol_user(unit["code"], email="creator@test.com")
+    group = create_group(creator_headers, unit["id"])
+
+    response = client.delete(f"/groups/{unit['id']}/{group['id']}/leave", headers=creator_headers)
+    assert response.status_code == 204, response.text
+
+    assert get_group(owner_headers, unit["id"], group["id"])["members"] == []
+
+def test_an_emptied_group_cannot_be_joined(client, auth_headers, create_unit, enrol_user, create_group, join_group):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME)
+
+    creator_headers = enrol_user(unit["code"], email="creator@test.com")
+    group = create_group(creator_headers, unit["id"], is_public=True)
+
+    response = client.delete(f"/groups/{unit['id']}/{group['id']}/leave", headers=creator_headers)
+    assert response.status_code == 204, response.text
+
+    joiner_headers = enrol_user(unit["code"], email="joiner@test.com")
+    response = join_group(joiner_headers, group["preference_code"])
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Group is no longer active"
+
+def test_an_emptied_group_is_not_joinable(client, auth_headers, create_unit, enrol_user, create_group, joinable_group_ids):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME)
+
+    creator_headers = enrol_user(unit["code"], email="creator@test.com")
+    group = create_group(creator_headers, unit["id"], is_public=True)
+
+    observer_headers = enrol_user(unit["code"], email="observer@test.com")
+    assert joinable_group_ids(observer_headers, unit["id"]) == [group["id"]]
+
+    response = client.delete(f"/groups/{unit['id']}/{group['id']}/leave", headers=creator_headers)
+    assert response.status_code == 204, response.text
+
+    assert joinable_group_ids(observer_headers, unit["id"]) == []
 
 def test_removing_a_member_can_make_a_group_provisional(client, auth_headers, create_unit, enrol_user, create_group, join_group, get_group, set_time_preferences):
     owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
