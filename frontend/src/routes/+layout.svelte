@@ -31,7 +31,6 @@
 			const fresh = myUnits.find((u) => u.id === current.id);
 			if (fresh) activeUnit.set(fresh);
 		}
-		await refreshUnitRole(get(activeUnit)?.id ?? null);
 	});
 
 	function logout() {
@@ -56,9 +55,16 @@
 
 	function switchUnit(unit: UnitResponse) {
 		activeUnit.set(unit);
-		refreshUnitRole(unit.id);
 		goto('/home');
 	}
+
+	// Refetches whenever the active unit changes for any reason — initial load,
+	// a fresh login setting it for the first time, or switching units — rather
+	// than only on this layout's own mount, which a client-side login/switch
+	// never re-triggers.
+	$effect(() => {
+		refreshUnitRole($activeUnit?.id ?? null);
+	});
 
 	const isUnitStaff = $derived($unitRole === 'owner' || $unitRole === 'administrator');
 </script>
