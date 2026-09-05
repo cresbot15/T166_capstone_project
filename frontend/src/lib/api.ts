@@ -26,6 +26,7 @@ export interface UserResponse {
 	first_name: string;
 	last_name: string;
 	email: string;
+	role: string;
 }
 
 export interface TokenResponse {
@@ -89,8 +90,13 @@ export interface GroupJoinResponse {
 }
 
 export const api = {
-	register: (data: { first_name: string; last_name: string; email: string; password: string }) =>
-		req<UserResponse>('POST', '/auth/register', data),
+	register: (data: {
+		first_name: string;
+		last_name: string;
+		email: string;
+		password: string;
+		role?: 'student' | 'unit_coordinator';
+	}) => req<UserResponse>('POST', '/auth/register', data),
 	login: (email: string, password: string) =>
 		req<TokenResponse>('POST', '/auth/login', { email, password }),
 	getMe: () => req<UserResponse>('GET', '/users/me'),
