@@ -83,7 +83,10 @@
 			<div class="card bg-base-100 shadow-sm rounded-2xl">
 				<div class="card-body">
 					<div class="flex items-center justify-between gap-2 mb-2">
-						<p class="font-bold">Group {group.preference_code}</p>
+						<div>
+							<p class="font-bold">Group {group.id}</p>
+							<p class="text-xs text-base-content/60 font-mono">{group.preference_code}</p>
+						</div>
 						<div class="flex items-center gap-2">
 							<span class="badge badge-ghost">{group.is_public ? 'Public' : 'Private'}</span>
 							<span class="badge {group.status === 'pending' ? 'badge-success' : 'badge-warning'}">
