@@ -7,9 +7,7 @@
 
 	let view = $state<'students' | 'groups'>('students');
 	let search = $state('');
-	let isOwner = $state(false);
 	let isStaff = $state(false);
-	let roleUpdateError = $state('');
 
 	let members = $state<UnitMemberResponse[]>([]);
 	let membersError = $state('');
@@ -85,11 +83,9 @@
 		}
 		try {
 			const profile = await api.getMyUnitProfile($activeUnit.id);
-			isOwner = profile.role === 'owner';
 			isStaff = profile.role === 'owner' || profile.role === 'administrator';
 			myTimePreferences = profile.time_preferences;
 		} catch {
-			isOwner = false;
 			isStaff = false;
 		}
 		try {
@@ -103,17 +99,6 @@
 			groupsError = e instanceof Error ? e.message : 'Could not load groups';
 		}
 	});
-
-	async function changeRole(member: UnitMemberResponse, role: 'administrator' | 'student') {
-		if (!$activeUnit) return;
-		roleUpdateError = '';
-		try {
-			const updated = await api.setMemberRole($activeUnit.id, member.user_id, role);
-			members = members.map((m) => (m.user_id === member.user_id ? { ...m, role: updated.role } : m));
-		} catch (e: unknown) {
-			roleUpdateError = e instanceof Error ? e.message : 'Could not update role';
-		}
-	}
 
 	async function joinGroup(group: GroupResponse) {
 		if (!group.preference_code) return;
@@ -171,7 +156,6 @@
 				bind:value={search}
 			/>
 
-			{#if roleUpdateError}<p class="text-error text-sm mb-2">{roleUpdateError}</p>{/if}
 			{#if membersError}<p class="text-error text-sm mb-2">{membersError}</p>{/if}
 
 			<div class="flex flex-col gap-3">
@@ -193,19 +177,7 @@
 								{#if member.is_new_student}
 									<span class="badge badge-accent badge-sm whitespace-nowrap">New student</span>
 								{/if}
-								{#if isOwner && member.role !== 'owner'}
-									<select
-										class="select select-bordered select-sm"
-										value={member.role}
-										onchange={(e) =>
-											changeRole(member, e.currentTarget.value as 'administrator' | 'student')}
-									>
-										<option value="student">Student</option>
-										<option value="administrator">Administrator</option>
-									</select>
-								{:else}
-									<span class="badge badge-ghost capitalize">{member.role}</span>
-								{/if}
+								<span class="badge badge-ghost capitalize">{member.role}</span>
 							</div>
 						</div>
 					</div>
