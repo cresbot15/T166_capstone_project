@@ -119,6 +119,23 @@ export const api = {
 	setMemberRole: (unitId: number, userId: number, role: 'administrator' | 'student') =>
 		req<UnitMembershipResponse>('PATCH', `/units/${unitId}/members/${userId}`, { role }),
 	getTimeSlots: () => req<string[]>('GET', '/time-slots'),
+	exportUnitStudents: async (unitId: number): Promise<void> => {
+		const res = await fetch(`${BASE}/units/${unitId}/export`, { headers: authHeaders() });
+		if (!res.ok) {
+			const data = await res.json().catch(() => ({}));
+			throw new Error(data.detail || 'Export failed');
+		}
+		const blob = await res.blob();
+		const disposition = res.headers.get('Content-Disposition') ?? '';
+		const match = disposition.match(/filename="?([^"]+)"?/);
+		const filename = match?.[1] ?? 'export.csv';
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = filename;
+		a.click();
+		URL.revokeObjectURL(url);
+	},
 
 	createGroup: (unitId: number, isPublic: boolean) =>
 		req<GroupResponse>('POST', '/groups/create', { unit_id: unitId, is_public: isPublic }),

@@ -2,7 +2,7 @@
 	import '../app.css';
 	import { onMount } from 'svelte';
 	import { get } from 'svelte/store';
-	import { token, user, activeUnit } from '$lib/stores';
+	import { token, user, activeUnit, unitRole } from '$lib/stores';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { api, type UnitResponse } from '$lib/api';
@@ -31,6 +31,7 @@
 			const fresh = myUnits.find((u) => u.id === current.id);
 			if (fresh) activeUnit.set(fresh);
 		}
+		await refreshUnitRole(get(activeUnit)?.id ?? null);
 	});
 
 	function logout() {
@@ -40,10 +41,26 @@
 		goto('/');
 	}
 
+	async function refreshUnitRole(unitId: number | null) {
+		if (unitId === null) {
+			unitRole.set(null);
+			return;
+		}
+		try {
+			const profile = await api.getMyUnitProfile(unitId);
+			unitRole.set(profile.role);
+		} catch {
+			unitRole.set(null);
+		}
+	}
+
 	function switchUnit(unit: UnitResponse) {
 		activeUnit.set(unit);
+		refreshUnitRole(unit.id);
 		goto('/home');
 	}
+
+	const isUnitStaff = $derived($unitRole === 'owner' || $unitRole === 'administrator');
 </script>
 
 {#if $token}
@@ -81,6 +98,15 @@
 			>
 				Profile
 			</a>
+			{#if isUnitStaff}
+				<a
+					href="/admin/members"
+					class="btn btn-ghost btn-sm"
+					class:btn-active={$page.url.pathname === '/admin/members'}
+				>
+					Manage Members
+				</a>
+			{/if}
 		</div>
 		<div class="navbar-end">
 			<button class="btn btn-ghost btn-sm" onclick={logout}>Logout</button>
