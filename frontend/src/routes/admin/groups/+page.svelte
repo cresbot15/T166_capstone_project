@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { token, activeUnit } from '$lib/stores';
 	import { api, type GroupResponse } from '$lib/api';
+	import { REQUIREMENT_LABELS } from '$lib/groupRequirements';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 
 	let groups = $state<GroupResponse[]>([]);
@@ -83,8 +84,20 @@
 				<div class="card-body">
 					<div class="flex items-center justify-between gap-2 mb-2">
 						<p class="font-bold">Group {group.preference_code}</p>
-						<span class="badge badge-ghost">{group.is_public ? 'Public' : 'Private'}</span>
+						<div class="flex items-center gap-2">
+							<span class="badge badge-ghost">{group.is_public ? 'Public' : 'Private'}</span>
+							<span class="badge {group.status === 'pending' ? 'badge-success' : 'badge-warning'}">
+								{group.status === 'pending' ? 'Ready' : 'Provisional'}
+							</span>
+						</div>
 					</div>
+					{#if group.status === 'provisional'}
+						<ul class="list-disc list-inside text-sm text-base-content/70 mb-2">
+							{#each group.unmet_requirements as req}
+								<li>{$activeUnit ? REQUIREMENT_LABELS[req]?.($activeUnit) ?? req : req}</li>
+							{/each}
+						</ul>
+					{/if}
 					{#if group.members.length === 0}
 						<p class="text-sm text-base-content/60">No members (empty group).</p>
 					{/if}
