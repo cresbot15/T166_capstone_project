@@ -89,6 +89,19 @@ export interface GroupJoinResponse {
 	group?: GroupResponse;
 }
 
+export interface UnitEventResponse {
+	id: number;
+	unit_id: number;
+	event_type: string;
+	actor_user_id: number | null;
+	actor_name: string | null;
+	subject_user_id: number | null;
+	subject_name: string | null;
+	group_id: number | null;
+	detail: Record<string, unknown> | null;
+	created_at: string;
+}
+
 export const api = {
 	register: (data: {
 		first_name: string;
@@ -148,5 +161,21 @@ export const api = {
 	leaveGroup: (unitId: number, groupId: number) =>
 		req<null>('DELETE', `/groups/${unitId}/${groupId}/leave`),
 	removeGroupMember: (unitId: number, groupId: number, userId: number) =>
-		req<null>('DELETE', `/groups/${unitId}/${groupId}/members/${userId}`)
+		req<null>('DELETE', `/groups/${unitId}/${groupId}/members/${userId}`),
+	getUnitEvents: (
+		unitId: number,
+		params?: { groupId?: number; userId?: number; limit?: number; offset?: number }
+	) => {
+		const qs = new URLSearchParams();
+		if (params?.limit !== undefined) qs.set('limit', String(params.limit));
+		if (params?.offset !== undefined) qs.set('offset', String(params.offset));
+		const query = qs.toString() ? `?${qs.toString()}` : '';
+		if (params?.groupId !== undefined) {
+			return req<UnitEventResponse[]>('GET', `/events/${unitId}/group/${params.groupId}${query}`);
+		}
+		if (params?.userId !== undefined) {
+			return req<UnitEventResponse[]>('GET', `/events/${unitId}/user/${params.userId}${query}`);
+		}
+		return req<UnitEventResponse[]>('GET', `/events/${unitId}${query}`);
+	}
 };

@@ -113,6 +113,13 @@
 				>
 					Manage Groups
 				</a>
+				<a
+					href="/admin/audit-log"
+					class="btn btn-ghost btn-sm"
+					class:btn-active={$page.url.pathname === '/admin/audit-log'}
+				>
+					Audit Log
+				</a>
 			{/if}
 		</div>
 		<div class="navbar-end">
