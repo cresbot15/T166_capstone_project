@@ -29,11 +29,11 @@ export function formatSlot(slot: string): string {
 }
 
 // The offered range for a newly-created unit, until unit owners can configure
-// their own hours/days. Weekdays 9am-6pm covers realistic meeting times
+// their own hours/days. Weekdays 8am-8pm covers realistic meeting times
 // without the full 24-hour, 7-day grid's needless complexity.
 const DEFAULT_DAYS = DAYS.filter((day) => day !== 'saturday' && day !== 'sunday');
-const DEFAULT_START_HOUR = 9;
-const DEFAULT_END_HOUR = 17;
+const DEFAULT_START_HOUR = 8;
+const DEFAULT_END_HOUR = 19;
 
 export function defaultTimeSlots(): string[] {
 	const slots: string[] = [];
