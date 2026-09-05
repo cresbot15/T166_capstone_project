@@ -231,7 +231,7 @@
 					<div class="card bg-base-100 shadow-sm rounded-2xl">
 						<div class="card-body flex-row items-center justify-between gap-4">
 							<div class="min-w-0 flex-1">
-								<p class="font-bold">Group {g.preference_code}</p>
+								<p class="font-bold">Group {g.id}</p>
 								<p class="text-sm text-base-content/60">
 									{g.members.map((m) => m.first_name).join(', ') || 'No members yet'}
 								</p>
