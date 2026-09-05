@@ -146,5 +146,7 @@ export const api = {
 	getRecommendedTimes: (unitId: number, groupId: number) =>
 		req<string[]>('GET', `/groups/${unitId}/${groupId}/recommended-times`),
 	leaveGroup: (unitId: number, groupId: number) =>
-		req<null>('DELETE', `/groups/${unitId}/${groupId}/leave`)
+		req<null>('DELETE', `/groups/${unitId}/${groupId}/leave`),
+	removeGroupMember: (unitId: number, groupId: number, userId: number) =>
+		req<null>('DELETE', `/groups/${unitId}/${groupId}/members/${userId}`)
 };

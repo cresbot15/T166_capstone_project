@@ -106,6 +106,13 @@
 				>
 					Manage Members
 				</a>
+				<a
+					href="/admin/groups"
+					class="btn btn-ghost btn-sm"
+					class:btn-active={$page.url.pathname === '/admin/groups'}
+				>
+					Manage Groups
+				</a>
 			{/if}
 		</div>
 		<div class="navbar-end">
