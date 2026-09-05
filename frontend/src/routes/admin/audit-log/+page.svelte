@@ -140,8 +140,8 @@
 		{#each events as event}
 			<div class="card bg-base-100 shadow-sm rounded-2xl">
 				<div class="card-body py-3 px-4 flex-row items-center justify-between gap-4">
-					<p class="text-sm">{eventLabel(event)}</p>
-					<p class="text-xs text-base-content/60 whitespace-nowrap">
+					<p class="text-sm min-w-0 flex-1">{eventLabel(event)}</p>
+					<p class="text-xs text-base-content/60 whitespace-nowrap flex-shrink-0">
 						{new Date(event.created_at).toLocaleString()}
 					</p>
 				</div>
