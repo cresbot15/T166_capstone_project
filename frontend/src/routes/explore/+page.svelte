@@ -7,7 +7,6 @@
 
 	let view = $state<'students' | 'groups'>('students');
 	let search = $state('');
-	let isStaff = $state(false);
 
 	let members = $state<UnitMemberResponse[]>([]);
 	let membersError = $state('');
@@ -20,7 +19,6 @@
 
 	let filtersOpen = $state(false);
 	let statusFilter = $state<'all' | 'pending' | 'provisional'>('all');
-	let typeFilter = $state<'all' | 'public' | 'private'>('all');
 	let openSlotsOnly = $state(false);
 	let matchesMyAvailability = $state(false);
 
@@ -29,7 +27,6 @@
 	const groupFilters = $derived(
 		[
 			statusFilter !== 'all' && ((g: GroupResponse) => g.status === statusFilter),
-			typeFilter !== 'all' && ((g: GroupResponse) => g.is_public === (typeFilter === 'public')),
 			openSlotsOnly &&
 				((g: GroupResponse) => g.members.length < ($activeUnit?.max_group_size ?? Infinity)),
 			matchesMyAvailability &&
@@ -40,7 +37,6 @@
 	const filteredGroups = $derived(groups.filter((g) => groupFilters.every((f) => f(g))));
 	const activeFilterCount = $derived(
 		(statusFilter !== 'all' ? 1 : 0) +
-			(typeFilter !== 'all' ? 1 : 0) +
 			(openSlotsOnly ? 1 : 0) +
 			(matchesMyAvailability ? 1 : 0)
 	);
@@ -83,10 +79,9 @@
 		}
 		try {
 			const profile = await api.getMyUnitProfile($activeUnit.id);
-			isStaff = profile.role === 'owner' || profile.role === 'administrator';
 			myTimePreferences = profile.time_preferences;
 		} catch {
-			isStaff = false;
+			// no-op — myTimePreferences stays at its default
 		}
 		try {
 			members = await api.getUnitMembers($activeUnit.id);
@@ -189,7 +184,7 @@
 		</div>
 
 		<div class="{view === 'groups' ? 'block' : 'hidden'} md:block">
-			<h2 class="font-bold text-lg mb-3">{isStaff ? 'Groups' : 'Public Groups'}</h2>
+			<h2 class="font-bold text-lg mb-3">Public Groups</h2>
 
 			<button
 				type="button"
@@ -212,16 +207,6 @@
 								<option value="provisional">Provisional</option>
 							</select>
 						</label>
-						{#if isStaff}
-							<label class="flex flex-col gap-1">
-								<span class="text-sm font-medium">Group type</span>
-								<select class="select select-bordered select-sm" bind:value={typeFilter}>
-									<option value="all">All</option>
-									<option value="public">Public</option>
-									<option value="private">Private</option>
-								</select>
-							</label>
-						{/if}
 						<label class="flex items-center gap-2">
 							<input type="checkbox" class="checkbox checkbox-sm" bind:checked={openSlotsOnly} />
 							<span class="text-sm">Has open spots</span>
@@ -252,11 +237,6 @@
 								</p>
 							</div>
 							<div class="flex items-center flex-wrap justify-end gap-2 flex-shrink-0">
-								{#if isStaff}
-									<span class="badge badge-ghost whitespace-nowrap"
-										>{g.is_public ? 'Public' : 'Private'}</span
-									>
-								{/if}
 								<span
 									class="badge whitespace-nowrap {g.status === 'pending'
 										? 'badge-success'
