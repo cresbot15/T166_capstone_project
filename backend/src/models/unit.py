@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, Enum, ForeignKey, Integer, String
+from sqlalchemy import JSON, Boolean, Enum, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.constants import (
     DEFAULT_MAX_GROUP_SIZE,
@@ -10,6 +10,7 @@ from src.constants import (
     UNIT_ROLES,
 )
 from src.database import Base
+from src.models.types import UtcDateTime
 from src.services.timestamps import utc_now
 
 
@@ -50,7 +51,7 @@ class Unit(Base):
     # None means no limit 0 means no new students are allowed in a group
     max_new_students: Mapped[int | None] = mapped_column(Integer, default=None)
     time_slots: Mapped[list[str]] = mapped_column(JSON, default=lambda: list(TIME_SLOT_ORDER))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=utc_now)
 
     users = relationship("User", secondary="user_units", back_populates="units", viewonly=True)
     unit_memberships = relationship("UnitMembership", back_populates="unit", cascade="all, delete-orphan")
