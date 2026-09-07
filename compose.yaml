@@ -1,0 +1,29 @@
+services:
+  api:
+    build: ./backend
+    environment:
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+    volumes:
+      - api-data:/data
+    restart: unless-stopped
+
+  web:
+    build: ./frontend
+    environment:
+      # Set to a hostname for automatic HTTPS. Left as :80 it serves plain HTTP,
+      # which is what you want when testing on a local network.
+      DOMAIN: ${DOMAIN::80}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  api-data:
+  caddy-data:
+  caddy-config:
