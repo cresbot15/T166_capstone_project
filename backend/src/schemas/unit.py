@@ -46,6 +46,10 @@ class UnitCreate(BaseModel):
         validate_formation_window(self.formation_start_date, self.formation_end_date)
         return self
 
+class FormationWindowUpdate(BaseModel):
+    formation_start_date: datetime | None = None
+    formation_end_date: datetime | None = None
+
 class UnitJoin(BaseModel):
     code: str
 
