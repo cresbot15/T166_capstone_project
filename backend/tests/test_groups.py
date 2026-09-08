@@ -1,4 +1,7 @@
+from datetime import timedelta
+
 from src.services.requirements import COMMON_TIME_SLOT, MAX_NEW_STUDENTS, MIN_GROUP_SIZE
+from src.services.timestamps import utc_now
 from tests.conftest import (
     TEST_UNIT_NAME,
     TEST_USER_EMAIL,
@@ -385,3 +388,178 @@ def test_students_cannot_remove_group_members(client, auth_headers, create_unit,
     assert response.status_code == 403, response.text
 
     assert len(_member_ids(client, owner_headers, unit["id"], group["id"])) == 2
+
+def _open_unit_with_group(auth_headers, create_unit, enrol_user, create_group):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    now = utc_now()
+
+    unit = create_unit(
+        headers=owner_headers,
+        name=TEST_UNIT_NAME,
+        formation_start_date=(now - timedelta(days=1)).isoformat(),
+        formation_end_date=(now + timedelta(days=1)).isoformat(),
+    )
+    group = create_group(owner_headers, unit["id"])
+    joiner_headers = enrol_user(unit["code"], email="joiner@test.com")
+
+    return now, group, joiner_headers
+
+def _travel_to(monkeypatch, moment):
+    monkeypatch.setattr("src.services.formation.utc_now", lambda: moment)
+
+def test_join_group_rejected_before_formation_opens(monkeypatch, auth_headers, create_unit, enrol_user, create_group, join_group):
+    now, group, joiner_headers = _open_unit_with_group(auth_headers, create_unit, enrol_user, create_group)
+
+    _travel_to(monkeypatch, now - timedelta(days=2))
+
+    response = join_group(joiner_headers, group["preference_code"])
+    assert response.status_code == 409, response.text
+    assert response.json()["detail"].startswith("Group formation opens at")
+
+def test_join_group_allowed_while_formation_is_open(auth_headers, create_unit, enrol_user, create_group, join_group):
+    _, group, joiner_headers = _open_unit_with_group(auth_headers, create_unit, enrol_user, create_group)
+
+    response = join_group(joiner_headers, group["preference_code"])
+    assert response.status_code == 200, response.text
+    assert response.json()["group"]["id"] == group["id"]
+
+def test_join_group_rejected_after_formation_closes(monkeypatch, auth_headers, create_unit, enrol_user, create_group, join_group):
+    now, group, joiner_headers = _open_unit_with_group(auth_headers, create_unit, enrol_user, create_group)
+
+    _travel_to(monkeypatch, now + timedelta(days=2))
+
+    response = join_group(joiner_headers, group["preference_code"])
+    assert response.status_code == 409, response.text
+    assert response.json()["detail"].startswith("Group formation closed at")
+
+def _unbounded_unit_with_group(auth_headers, create_unit, enrol_user, create_group):
+    """A unit created with no formation window, plus a group and someone to join it."""
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    now = utc_now()
+
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME)
+    group = create_group(owner_headers, unit["id"])
+    joiner_headers = enrol_user(unit["code"], email="joiner@test.com")
+
+    return now, unit, group, owner_headers, joiner_headers
+
+def _set_formation_window(client, headers, unit_id, **dates):
+    response = client.patch(f"/units/{unit_id}/formation", json=dates, headers=headers)
+    assert response.status_code == 200, response.text
+    return response.json()
+
+def test_join_group_rejected_before_a_start_date_set_after_creation(client, auth_headers, create_unit, enrol_user, create_group, join_group):
+    now, unit, group, owner_headers, joiner_headers = _unbounded_unit_with_group(auth_headers, create_unit, enrol_user, create_group)
+
+    _set_formation_window(client, owner_headers, unit["id"], formation_start_date=(now + timedelta(days=1)).isoformat())
+
+    response = join_group(joiner_headers, group["preference_code"])
+    assert response.status_code == 409, response.text
+    assert response.json()["detail"].startswith("Group formation opens at")
+
+def test_join_group_allowed_inside_a_window_set_after_creation(client, auth_headers, create_unit, enrol_user, create_group, join_group):
+    now, unit, group, owner_headers, joiner_headers = _unbounded_unit_with_group(auth_headers, create_unit, enrol_user, create_group)
+
+    _set_formation_window(
+        client,
+        owner_headers,
+        unit["id"],
+        formation_start_date=(now - timedelta(days=1)).isoformat(),
+        formation_end_date=(now + timedelta(days=1)).isoformat(),
+    )
+
+    response = join_group(joiner_headers, group["preference_code"])
+    assert response.status_code == 200, response.text
+    assert response.json()["group"]["id"] == group["id"]
+
+def test_join_group_rejected_after_an_end_date_set_after_creation(monkeypatch, client, auth_headers, create_unit, enrol_user, create_group, join_group):
+    now, unit, group, owner_headers, joiner_headers = _unbounded_unit_with_group(auth_headers, create_unit, enrol_user, create_group)
+
+    _set_formation_window(client, owner_headers, unit["id"], formation_end_date=(now + timedelta(hours=1)).isoformat())
+
+    _travel_to(monkeypatch, now + timedelta(hours=2))
+
+    response = join_group(joiner_headers, group["preference_code"])
+    assert response.status_code == 409, response.text
+    assert response.json()["detail"].startswith("Group formation closed at")
+
+def _enrolled_student(auth_headers, create_unit, enrol_user, **window):
+    """An enrolled student in a unit whose formation window is set at creation."""
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME, **window)
+    student_headers = enrol_user(unit["code"], email="student@test.com")
+
+    return unit, student_headers
+
+def _group_with_two_members(auth_headers, create_unit, enrol_user, create_group, join_group):
+    now, group, joiner_headers = _open_unit_with_group(auth_headers, create_unit, enrol_user, create_group)
+    assert join_group(joiner_headers, group["preference_code"]).status_code == 200
+
+    return now, group, joiner_headers
+
+def test_create_group_rejected_before_formation_opens(client, auth_headers, create_unit, enrol_user):
+    now = utc_now()
+    unit, student_headers = _enrolled_student(
+        auth_headers,
+        create_unit,
+        enrol_user,
+        formation_start_date=(now + timedelta(days=1)).isoformat(),
+        formation_end_date=(now + timedelta(days=2)).isoformat(),
+    )
+
+    response = client.post("/groups/create", json={"unit_id": unit["id"]}, headers=student_headers)
+    assert response.status_code == 409, response.text
+    assert response.json()["detail"].startswith("Group formation opens at")
+
+def test_create_group_allowed_while_formation_is_open(client, auth_headers, create_unit, enrol_user):
+    now = utc_now()
+    unit, student_headers = _enrolled_student(
+        auth_headers,
+        create_unit,
+        enrol_user,
+        formation_start_date=(now - timedelta(days=1)).isoformat(),
+        formation_end_date=(now + timedelta(days=1)).isoformat(),
+    )
+
+    response = client.post("/groups/create", json={"unit_id": unit["id"]}, headers=student_headers)
+    assert response.status_code == 200, response.text
+    assert response.json()["unit_id"] == unit["id"]
+
+def test_create_group_rejected_after_formation_closes(monkeypatch, client, auth_headers, create_unit, enrol_user):
+    now = utc_now()
+    unit, student_headers = _enrolled_student(
+        auth_headers,
+        create_unit,
+        enrol_user,
+        formation_end_date=(now + timedelta(days=1)).isoformat(),
+    )
+
+    _travel_to(monkeypatch, now + timedelta(days=2))
+
+    response = client.post("/groups/create", json={"unit_id": unit["id"]}, headers=student_headers)
+    assert response.status_code == 409, response.text
+    assert response.json()["detail"].startswith("Group formation closed at")
+
+def test_leave_group_rejected_before_formation_opens(monkeypatch, client, auth_headers, create_unit, enrol_user, create_group, join_group):
+    now, group, joiner_headers = _group_with_two_members(auth_headers, create_unit, enrol_user, create_group, join_group)
+
+    _travel_to(monkeypatch, now - timedelta(days=2))
+
+    response = client.delete(f"/groups/{group['unit_id']}/{group['id']}/leave", headers=joiner_headers)
+    assert response.status_code == 409, response.text
+    assert response.json()["detail"].startswith("Group formation opens at")
+
+def test_leave_group_allowed_while_formation_is_open(client, auth_headers, create_unit, enrol_user, create_group, join_group):
+    _, group, joiner_headers = _group_with_two_members(auth_headers, create_unit, enrol_user, create_group, join_group)
+
+    response = client.delete(f"/groups/{group['unit_id']}/{group['id']}/leave", headers=joiner_headers)
+    assert response.status_code == 204, response.text
+
+def test_leave_group_rejected_after_formation_closes(monkeypatch, client, auth_headers, create_unit, enrol_user, create_group, join_group):
+    now, group, joiner_headers = _group_with_two_members(auth_headers, create_unit, enrol_user, create_group, join_group)
+
+    _travel_to(monkeypatch, now + timedelta(days=2))
+
+    response = client.delete(f"/groups/{group['unit_id']}/{group['id']}/leave", headers=joiner_headers)
+    assert response.status_code == 409, response.text
+    assert response.json()["detail"].startswith("Group formation closed at")
