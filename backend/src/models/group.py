@@ -1,8 +1,9 @@
 from datetime import datetime
 
 from sqlalchemy import Boolean, ForeignKey, String
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from src.constants import TIME_SLOT_ORDER
+from src.constants import GROUP_LIFECYCLE_ACTIVE, GROUP_LIFECYCLES, TIME_SLOT_ORDER
 from src.database import Base
 from src.models.types import UtcDateTime
 from src.services.requirements import evaluate_group
@@ -28,7 +29,10 @@ class Group(Base):
     unit_id: Mapped[int] = mapped_column(ForeignKey("units.id"))
     creator_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     is_public: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=utc_now)
+    lifecycle: Mapped[str] = mapped_column(
+        Enum(*GROUP_LIFECYCLES, name="group_lifecycle"), default=GROUP_LIFECYCLE_ACTIVE
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     unit = relationship("Unit", back_populates="groups")
     creator_user = relationship("User", foreign_keys=[creator_user_id])

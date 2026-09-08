@@ -14,6 +14,10 @@ FORMATION_NOT_OPEN = "not_open"
 FORMATION_OPEN = "open"
 FORMATION_CLOSED = "closed"
 
+GROUP_LIFECYCLE_ACTIVE = "active"
+GROUP_LIFECYCLE_DISSOLVED = "dissolved"
+GROUP_LIFECYCLES: tuple[str, ...] = (GROUP_LIFECYCLE_ACTIVE, GROUP_LIFECYCLE_DISSOLVED)
+
 # Audit log events
 UNIT_EVENT_MEMBER_JOINED = "unit.member_joined"
 UNIT_EVENT_MEMBER_LEFT = "unit.member_left"

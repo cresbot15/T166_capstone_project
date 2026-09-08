@@ -275,23 +275,30 @@ def test_staff_can_remove_a_member_from_a_group(client, auth_headers, create_uni
 
     assert _member_ids(client, owner_headers, unit["id"], group["id"]) == [member_ids[0]]
 
-def test_removing_the_last_member_keeps_the_group(client, auth_headers, create_unit, enrol_user, create_group, get_group):
+def _listed_group_ids(client, headers, unit_id):
+    response = client.get(f"/groups/{unit_id}", headers=headers)
+    assert response.status_code == 200, response.text
+    return [g["id"] for g in response.json()]
+
+def test_removing_the_last_member_dissolves_the_group(client, auth_headers, create_unit, enrol_user, create_group):
     owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
     unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME)
 
     creator_headers = enrol_user(unit["code"], email="creator@test.com")
     group = create_group(creator_headers, unit["id"])
+    assert _listed_group_ids(client, owner_headers, unit["id"]) == [group["id"]]
 
     member_ids = _member_ids(client, owner_headers, unit["id"], group["id"])
-
     response = client.delete(f"/groups/{unit['id']}/{group['id']}/members/{member_ids[0]}", headers=owner_headers)
     assert response.status_code == 204, response.text
 
-    emptied = get_group(owner_headers, unit["id"], group["id"])
-    assert emptied["members"] == []
-    assert emptied["preference_code"] == group["preference_code"]
+    assert _listed_group_ids(client, owner_headers, unit["id"]) == []
 
-def test_leaving_as_the_last_member_keeps_the_group(client, auth_headers, create_unit, enrol_user, create_group, get_group):
+    # The row survives, so its audit history is still reachable
+    response = client.get(f"/events/{unit['id']}/group/{group['id']}", headers=owner_headers)
+    assert response.status_code == 200, response.text
+
+def test_leaving_as_the_last_member_dissolves_the_group(client, auth_headers, create_unit, enrol_user, create_group):
     owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
     unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME)
 
@@ -301,7 +308,23 @@ def test_leaving_as_the_last_member_keeps_the_group(client, auth_headers, create
     response = client.delete(f"/groups/{unit['id']}/{group['id']}/leave", headers=creator_headers)
     assert response.status_code == 204, response.text
 
-    assert get_group(owner_headers, unit["id"], group["id"])["members"] == []
+    assert _listed_group_ids(client, owner_headers, unit["id"]) == []
+    assert client.get(f"/events/{unit['id']}/group/{group['id']}", headers=owner_headers).status_code == 200
+
+def test_a_group_keeps_its_members_until_the_last_one_leaves(client, auth_headers, create_unit, enrol_user, create_group, join_group, get_group):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME)
+
+    creator_headers = enrol_user(unit["code"], email="creator@test.com")
+    group = create_group(creator_headers, unit["id"])
+
+    joiner_headers = enrol_user(unit["code"], email="joiner@test.com")
+    assert join_group(joiner_headers, group["preference_code"]).status_code == 200
+
+    assert client.delete(f"/groups/{unit['id']}/{group['id']}/leave", headers=joiner_headers).status_code == 204
+
+    still_listed = get_group(owner_headers, unit["id"], group["id"])
+    assert len(still_listed["members"]) == 1
 
 def test_an_emptied_group_cannot_be_joined(client, auth_headers, create_unit, enrol_user, create_group, join_group):
     owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)

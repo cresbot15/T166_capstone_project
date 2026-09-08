@@ -6,6 +6,8 @@ from src.constants import (
     GROUP_EVENT_MEMBER_JOINED,
     GROUP_EVENT_MEMBER_LEFT,
     GROUP_EVENT_MEMBER_REMOVED,
+    GROUP_LIFECYCLE_ACTIVE,
+    GROUP_LIFECYCLE_DISSOLVED,
     TIME_SLOT_ORDER,
     UNIT_STAFF_ROLES,
 )
@@ -29,7 +31,14 @@ def _group_in_unit_or_404(db: Session, unit_id: int, group_id: int) -> Group:
 
 def _remove_member(db: Session, group: Group, user_id: int, actor_user_id: int) -> None:
     """Removes a member from a group.
+
+    This endpoint allows for both student self removal, and for staff manual removal.
+
+    A group that loses its last member becomes dissolved: not joinable, and not
+    returned by other endpoints that list groups.
     """
+    was_last_member = len(group.members) == 1
+
     membership = db.query(GroupMembership).filter_by(user_id=user_id, group_id=group.id).first()
     db.delete(membership)
 
@@ -42,6 +51,10 @@ def _remove_member(db: Session, group: Group, user_id: int, actor_user_id: int) 
         subject_user_id=user_id,
         group=group,
     )
+
+    if was_last_member:
+        group.lifecycle = GROUP_LIFECYCLE_DISSOLVED
+
     db.commit()
 
 @router.post("/join", response_model=GroupJoinResponse)
@@ -62,6 +75,7 @@ def join_group(body: GroupJoin, db: Session = Depends(get_db), current_user: Use
     require_formation_open(group.unit)
 
     if not group.members:
+    if group.lifecycle != GROUP_LIFECYCLE_ACTIVE or not group.members:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Group is no longer active")
 
     if len(group.members) >= group.unit.max_group_size:
@@ -123,7 +137,9 @@ def get_groups(unit_id: int, db: Session = Depends(get_db), current_user: User =
     if not membership:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enrolled in this unit")
 
-    query = db.query(Group).filter(Group.unit_id == unit_id)
+    query = db.query(Group).filter(
+        Group.unit_id == unit_id, Group.lifecycle == GROUP_LIFECYCLE_ACTIVE
+    )
     if membership.role not in UNIT_STAFF_ROLES:
         member_group_ids = [g.id for g in current_user.groups if g.unit_id == unit_id]
         query = query.filter(or_(Group.is_public == True, Group.id.in_(member_group_ids)))
@@ -142,7 +158,15 @@ def get_joinable_groups(unit_id: int, db: Session = Depends(get_db), current_use
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enrolled in this unit")
 
     own_group_ids = {g.id for g in current_user.groups if g.unit_id == unit_id}
-    groups = db.query(Group).filter(Group.unit_id == unit_id, Group.is_public == True).all()
+    groups = (
+        db.query(Group)
+        .filter(
+            Group.unit_id == unit_id,
+            Group.is_public == True,
+            Group.lifecycle == GROUP_LIFECYCLE_ACTIVE,
+        )
+        .all()
+    )
 
     return [
         GroupResponse.model_validate(g)
