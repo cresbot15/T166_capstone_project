@@ -4,10 +4,7 @@ from sqlalchemy.orm import Session
 from src.constants import (
     GROUP_EVENT_CREATED,
     GROUP_EVENT_MEMBER_JOINED,
-    GROUP_EVENT_MEMBER_LEFT,
-    GROUP_EVENT_MEMBER_REMOVED,
     GROUP_LIFECYCLE_ACTIVE,
-    GROUP_LIFECYCLE_DISSOLVED,
     TIME_SLOT_ORDER,
     UNIT_STAFF_ROLES,
 )
@@ -18,6 +15,7 @@ from src.models.user import User
 from src.schemas.group import GroupJoin, GroupJoinResponse, GroupResponse, GroupCreate
 from src.services.audit import record
 from src.services.formation import require_formation_open
+from src.services.groups import remove_member
 from src.services.auth import get_current_user, require_unit_staff
 from src.services.codes import generate_preference_code
 
@@ -28,34 +26,6 @@ def _group_in_unit_or_404(db: Session, unit_id: int, group_id: int) -> Group:
     if group is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
     return group
-
-def _remove_member(db: Session, group: Group, user_id: int, actor_user_id: int) -> None:
-    """Removes a member from a group.
-
-    This endpoint allows for both student self removal, and for staff manual removal.
-
-    A group that loses its last member becomes dissolved: not joinable, and not
-    returned by other endpoints that list groups.
-    """
-    was_last_member = len(group.members) == 1
-
-    membership = db.query(GroupMembership).filter_by(user_id=user_id, group_id=group.id).first()
-    db.delete(membership)
-
-    left_voluntarily = actor_user_id == user_id
-    record(
-        db,
-        group.unit_id,
-        GROUP_EVENT_MEMBER_LEFT if left_voluntarily else GROUP_EVENT_MEMBER_REMOVED,
-        actor_user_id=actor_user_id,
-        subject_user_id=user_id,
-        group=group,
-    )
-
-    if was_last_member:
-        group.lifecycle = GROUP_LIFECYCLE_DISSOLVED
-
-    db.commit()
 
 @router.post("/join", response_model=GroupJoinResponse)
 def join_group(body: GroupJoin, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -200,7 +170,7 @@ def get_recommended_times(unit_id: int, group_id: int, db: Session = Depends(get
 def leave_group(unit_id: int, group_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     '''Attempts to leave the given group in the given unit as the logged in user
     
-    If the user leaving the group would leave the group empty, it is deleted'''
+    If the user leaving the group would leave the group empty, it is dissolved'''
     group = _group_in_unit_or_404(db, unit_id, group_id)
 
     if current_user not in group.members:
@@ -208,17 +178,19 @@ def leave_group(unit_id: int, group_id: int, db: Session = Depends(get_db), curr
 
     require_formation_open(group.unit)
 
-    _remove_member(db, group, current_user.id, actor_user_id=current_user.id)
+    remove_member(db, group, current_user.id, actor_user_id=current_user.id)
+    db.commit()
 
 @router.delete("/{unit_id}/{group_id}/members/{user_id}", response_model=None, status_code=status.HTTP_204_NO_CONTENT)
 def remove_group_member(unit_id: int, group_id: int, user_id: int, db: Session = Depends(get_db), _staff: UnitMembership = Depends(require_unit_staff)):
     '''Removes the given member from the given group in the given unit
 
     Owners and administrators only. If removing the member would leave the group
-    empty, it is deleted. Being removed can push a group into provisional.'''
+    empty, it is dissolved. Being removed can push a group into provisional.'''
     group = _group_in_unit_or_404(db, unit_id, group_id)
 
     if not any(m.id == user_id for m in group.members):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User is not a member of this group")
 
-    _remove_member(db, group, user_id, actor_user_id=_staff.user_id)
+    remove_member(db, group, user_id, actor_user_id=_staff.user_id)
+    db.commit()
