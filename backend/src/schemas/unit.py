@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Literal
 from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 from src.constants import (
@@ -10,6 +11,7 @@ from src.constants import (
     TIME_SLOTS,
 )
 from src.schemas.types import UtcDatetime
+from src.services.formation import validate_formation_window
 
 class UnitCreate(BaseModel):
     name: str | None = None
@@ -17,6 +19,8 @@ class UnitCreate(BaseModel):
     max_group_size: int = Field(default=DEFAULT_MAX_GROUP_SIZE, ge=MIN_MAX_GROUP_SIZE, le=MAX_MAX_GROUP_SIZE)
     max_new_students: int | None = Field(default=None, ge=0, le=MAX_MAX_GROUP_SIZE)
     time_slots: list[str] | None = None
+    formation_start_date: datetime | None = None
+    formation_end_date: datetime | None = None
 
     @field_validator("time_slots")
     @classmethod
@@ -35,6 +39,11 @@ class UnitCreate(BaseModel):
     def validate_group_size_range(self):
         if self.min_group_size > self.max_group_size:
             raise ValueError("min_group_size cannot be greater than max_group_size")
+        return self
+
+    @model_validator(mode="after")
+    def validate_formation_dates(self):
+        validate_formation_window(self.formation_start_date, self.formation_end_date)
         return self
 
 class UnitJoin(BaseModel):
@@ -56,6 +65,8 @@ class UnitResponse(BaseModel):
     max_group_size: int
     max_new_students: int | None = None
     time_slots: list[str] = []
+    formation_start_date: UtcDatetime | None = None
+    formation_end_date: UtcDatetime | None = None
     created_at: UtcDatetime
 
 class UnitRoleUpdate(BaseModel):

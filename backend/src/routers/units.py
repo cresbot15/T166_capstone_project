@@ -49,6 +49,8 @@ def create_unit(body: UnitCreate, db: Session = Depends(get_db), current_user: U
         max_group_size=body.max_group_size,
         max_new_students=body.max_new_students,
         time_slots=body.time_slots or list(TIME_SLOT_ORDER),
+        formation_start_date=body.formation_start_date,
+        formation_end_date=body.formation_end_date,
     )
     db.add(unit)
     db.commit()

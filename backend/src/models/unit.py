@@ -51,6 +51,9 @@ class Unit(Base):
     # None means no limit 0 means no new students are allowed in a group
     max_new_students: Mapped[int | None] = mapped_column(Integer, default=None)
     time_slots: Mapped[list[str]] = mapped_column(JSON, default=lambda: list(TIME_SLOT_ORDER))
+    # None means there is no set date for starting or stopping group formation
+    formation_start_date: Mapped[datetime | None] = mapped_column(UtcDateTime, default=None)
+    formation_end_date: Mapped[datetime | None] = mapped_column(UtcDateTime, default=None)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=utc_now)
 
     users = relationship("User", secondary="user_units", back_populates="units", viewonly=True)

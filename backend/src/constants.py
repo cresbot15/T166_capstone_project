@@ -9,6 +9,11 @@ UNIT_ROLE_STUDENT = "student"
 UNIT_ROLES: tuple[str, ...] = (UNIT_ROLE_OWNER, UNIT_ROLE_ADMINISTRATOR, UNIT_ROLE_STUDENT)
 UNIT_STAFF_ROLES: tuple[str, ...] = (UNIT_ROLE_OWNER, UNIT_ROLE_ADMINISTRATOR)
 
+# Where a unit sits in its group formation window
+FORMATION_NOT_OPEN = "not_open"
+FORMATION_OPEN = "open"
+FORMATION_CLOSED = "closed"
+
 # Audit log events
 UNIT_EVENT_MEMBER_JOINED = "unit.member_joined"
 UNIT_EVENT_MEMBER_LEFT = "unit.member_left"
