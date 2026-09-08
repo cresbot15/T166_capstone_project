@@ -5,7 +5,6 @@ from src.constants import (
     GROUP_EVENT_CREATED,
     GROUP_EVENT_MEMBER_JOINED,
     GROUP_LIFECYCLE_ACTIVE,
-    TIME_SLOT_ORDER,
     UNIT_STAFF_ROLES,
 )
 from src.database import get_db
@@ -14,6 +13,7 @@ from src.models.unit import Unit, UnitMembership
 from src.models.user import User
 from src.schemas.group import GroupJoin, GroupJoinResponse, GroupResponse, GroupCreate
 from src.services.audit import record
+from src.services.availability import common_time_slots
 from src.services.formation import require_formation_open
 from src.services.groups import remove_member
 from src.services.auth import get_current_user, require_unit_staff
@@ -152,19 +152,7 @@ def get_recommended_times(unit_id: int, group_id: int, db: Session = Depends(get
 
     other_members = [m for m in group.members if m.id != current_user.id]
 
-    if not other_members:
-        return []
-
-    sets = []
-    for m in other_members:
-        profile = next((p for p in m.unit_profiles if p.unit_id == unit_id), None)
-        sets.append(set(profile.time_preferences if profile else []))
-
-    result = sets[0]
-    for s in sets[1:]:
-        result = result & s
-
-    return [slot for slot in TIME_SLOT_ORDER if slot in result]
+    return common_time_slots(other_members, unit_id)
 
 @router.delete("/{unit_id}/{group_id}/leave", response_model=None, status_code=status.HTTP_204_NO_CONTENT)
 def leave_group(unit_id: int, group_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
