@@ -34,6 +34,17 @@ from src.services.formation import validate_formation_window
 
 router = APIRouter()
 
+def _unit_me(unit_id: int, membership: UnitMembership, profile: UnitProfile) -> UnitMeResponse:
+    """Builds the caller's view of themselves in a unit"""
+    return UnitMeResponse(
+        unit_id=unit_id,
+        role=membership.role,
+        is_new_student=profile.is_new_student,
+        delivery_mode=profile.delivery_mode,
+        skills=profile.skills,
+        time_preferences=profile.time_preferences,
+    )
+
 @router.get("/me", response_model=list[UnitResponse])
 def get_my_units(current_user: User = Depends(get_current_user)):
     '''Returns all units that the currently logged in user is enrolled in'''
@@ -108,14 +119,7 @@ def get_my_unit_profile(unit_id: int, db: Session = Depends(get_db), current_use
 
     profile = db.query(UnitProfile).filter_by(user_id=current_user.id, unit_id=unit_id).first()
 
-    return UnitMeResponse(
-        unit_id=unit_id,
-        role=membership.role,
-        is_new_student=profile.is_new_student,
-        delivery_mode=profile.delivery_mode,
-        skills=profile.skills,
-        time_preferences=profile.time_preferences,
-    )
+    return _unit_me(unit_id, membership, profile)
 
 @router.patch("/{unit_id}/me", response_model=UnitMeResponse)
 def update_my_unit_profile(unit_id: int, body: UnitProfileUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -141,14 +145,7 @@ def update_my_unit_profile(unit_id: int, body: UnitProfileUpdate, db: Session = 
     db.commit()
     db.refresh(profile)
 
-    return UnitMeResponse(
-        unit_id=unit_id,
-        role=membership.role,
-        is_new_student=profile.is_new_student,
-        delivery_mode=profile.delivery_mode,
-        skills=profile.skills,
-        time_preferences=profile.time_preferences,
-    )
+    return _unit_me(unit_id, membership, profile)
 
 @router.get("/{unit_id}/members", response_model=list[UnitMemberResponse])
 def get_unit_members(unit_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):

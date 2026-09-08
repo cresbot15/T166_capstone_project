@@ -3,9 +3,9 @@ from datetime import datetime
 from sqlalchemy import Boolean, ForeignKey, String
 from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from src.constants import GROUP_LIFECYCLE_ACTIVE, GROUP_LIFECYCLES, TIME_SLOT_ORDER
+from src.constants import GROUP_LIFECYCLE_ACTIVE, GROUP_LIFECYCLES
 from src.database import Base
-from src.models.types import UtcDateTime
+from src.services.availability import common_time_slots
 from src.services.requirements import evaluate_group
 from src.services.timestamps import utc_now
 
@@ -41,16 +41,7 @@ class Group(Base):
 
     @property
     def common_time_slots(self) -> list[str]:
-        if not self.members:
-            return []
-        sets = []
-        for m in self.members:
-            profile = next((p for p in m.unit_profiles if p.unit_id == self.unit_id), None)
-            sets.append(set(profile.time_preferences if profile else []))
-        result = sets[0]
-        for s in sets[1:]:
-            result = result & s
-        return [slot for slot in TIME_SLOT_ORDER if slot in result]
+        return common_time_slots(self.members, self.unit_id)
 
     @property
     def unmet_requirements(self) -> list[str]:
