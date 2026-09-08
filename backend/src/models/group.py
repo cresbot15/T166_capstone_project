@@ -5,7 +5,6 @@ from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.constants import GROUP_LIFECYCLE_ACTIVE, GROUP_LIFECYCLES
 from src.database import Base
-from src.models.types import UtcDateTime
 from src.services.availability import common_time_slots
 from src.services.requirements import evaluate_group
 from src.services.timestamps import utc_now
