@@ -74,7 +74,6 @@ def join_group(body: GroupJoin, db: Session = Depends(get_db), current_user: Use
 
     require_formation_open(group.unit)
 
-    if not group.members:
     if group.lifecycle != GROUP_LIFECYCLE_ACTIVE or not group.members:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Group is no longer active")
 
