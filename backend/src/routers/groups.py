@@ -17,6 +17,7 @@ from src.models.unit import Unit, UnitMembership
 from src.models.user import User
 from src.schemas.group import GroupJoin, GroupJoinResponse, GroupResponse, GroupCreate
 from src.services.audit import record
+from src.services.formation import require_formation_open
 from src.services.auth import get_current_user, require_unit_staff
 from src.services.codes import generate_preference_code
 
@@ -71,6 +72,8 @@ def join_group(body: GroupJoin, db: Session = Depends(get_db), current_user: Use
     if group.unit not in current_user.units:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is not enrolled in this unit")
 
+    require_formation_open(group.unit)
+
     if group.lifecycle != GROUP_LIFECYCLE_ACTIVE or not group.members:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Group is no longer active")
 
@@ -95,6 +98,8 @@ def create_group(body: GroupCreate, db: Session = Depends(get_db), current_user:
 
     if unit not in current_user.units:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enrolled in this unit")
+
+    require_formation_open(unit)
 
     # User is already in a group for this unit
     if any(g.unit_id == unit.id for g in current_user.groups):
@@ -200,6 +205,8 @@ def leave_group(unit_id: int, group_id: int, db: Session = Depends(get_db), curr
 
     if current_user not in group.members:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a member of this group")
+
+    require_formation_open(group.unit)
 
     _remove_member(db, group, current_user.id, actor_user_id=current_user.id)
 

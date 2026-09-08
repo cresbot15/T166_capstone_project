@@ -17,6 +17,7 @@ from src.models.group import Group
 from src.models.unit import Unit, UnitMembership, UnitProfile
 from src.models.user import User
 from src.schemas.unit import (
+    FormationWindowUpdate,
     UnitCreate,
     UnitJoin,
     UnitResponse,
@@ -27,8 +28,9 @@ from src.schemas.unit import (
     UnitMeResponse,
 )
 from src.services.audit import record
-from src.services.auth import get_current_user, require_coordinator, require_unit_staff
+from src.services.auth import get_current_user, require_coordinator, require_unit_owner, require_unit_staff
 from src.services.codes import generate_unit_code
+from src.services.formation import validate_formation_window
 
 router = APIRouter()
 
@@ -49,6 +51,8 @@ def create_unit(body: UnitCreate, db: Session = Depends(get_db), current_user: U
         max_group_size=body.max_group_size,
         max_new_students=body.max_new_students,
         time_slots=body.time_slots or list(TIME_SLOT_ORDER),
+        formation_start_date=body.formation_start_date,
+        formation_end_date=body.formation_end_date,
     )
     db.add(unit)
     db.commit()
@@ -183,6 +187,29 @@ def get_unit_members(unit_id: int, db: Session = Depends(get_db), current_user: 
         ))
 
     return members
+
+@router.patch("/{unit_id}/formation", response_model=UnitResponse)
+def set_formation_window(unit_id: int, body: FormationWindowUpdate, db: Session = Depends(get_db), _owner: UnitMembership = Depends(require_unit_owner)):
+    '''Sets when groups can be formed in this unit. Unit owners only
+
+    Send a date as null to remove it, or omit it to leave it unchanged'''
+    unit = db.query(Unit).filter(Unit.id == unit_id).first()
+
+    supplied = body.model_dump(exclude_unset=True)
+    start = supplied.get("formation_start_date", unit.formation_start_date)
+    end = supplied.get("formation_end_date", unit.formation_end_date)
+
+    try:
+        validate_formation_window(start, end)
+    except ValueError as error:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(error))
+
+    unit.formation_start_date = start
+    unit.formation_end_date = end
+    db.commit()
+    db.refresh(unit)
+
+    return unit
 
 @router.patch("/{unit_id}/members/{user_id}", response_model=UnitMembershipResponse)
 def set_member_role(unit_id: int, user_id: int, body: UnitRoleUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):

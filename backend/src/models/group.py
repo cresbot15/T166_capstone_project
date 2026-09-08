@@ -1,9 +1,11 @@
 from datetime import datetime
 
+from sqlalchemy import Boolean, ForeignKey, String
 from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.constants import GROUP_LIFECYCLE_ACTIVE, GROUP_LIFECYCLES, TIME_SLOT_ORDER
 from src.database import Base
+from src.models.types import UtcDateTime
 from src.services.requirements import evaluate_group
 from src.services.timestamps import utc_now
 

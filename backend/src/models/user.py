@@ -1,9 +1,10 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, String
+from sqlalchemy import Enum, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.constants import USER_ROLE_STUDENT, USER_ROLES
 from src.database import Base
+from src.models.types import UtcDateTime
 from src.services.timestamps import utc_now
 
 class User(Base):
@@ -16,7 +17,7 @@ class User(Base):
     email: Mapped[str] = mapped_column(String, unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String)
     role: Mapped[str] = mapped_column(Enum(*USER_ROLES, name="user_role"), default=USER_ROLE_STUDENT)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=utc_now)
 
     units = relationship("Unit", secondary="user_units", back_populates="users", viewonly=True)
     unit_memberships = relationship("UnitMembership", back_populates="user", cascade="all, delete-orphan")
