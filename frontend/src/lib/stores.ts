@@ -42,3 +42,4 @@ function createActiveUnitStore() {
 export const token = createTokenStore();
 export const user = writable<UserResponse | null>(null);
 export const activeUnit = createActiveUnitStore();
+export const unitRole = writable<string | null>(null);

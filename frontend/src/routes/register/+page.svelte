@@ -8,6 +8,7 @@
 	let lastName = $state('');
 	let email = $state('');
 	let password = $state('');
+	let role = $state<'student' | 'unit_coordinator'>('student');
 	let error = $state('');
 	let loading = $state(false);
 
@@ -20,7 +21,7 @@
 		error = '';
 		loading = true;
 		try {
-			await api.register({ first_name: firstName, last_name: lastName, email, password });
+			await api.register({ first_name: firstName, last_name: lastName, email, password, role });
 			const loginData = await api.login(email, password);
 			token.set(loginData.access_token);
 			user.set(await api.getMe());
@@ -41,6 +42,24 @@
 				Please fill out the following form to register with TeamUp.
 			</p>
 			<form onsubmit={handleSubmit} class="flex flex-col gap-3">
+				<div role="tablist" class="tabs tabs-boxed mb-1">
+					<button
+						type="button"
+						role="tab"
+						class="tab {role === 'student' ? 'tab-active' : ''}"
+						onclick={() => (role = 'student')}
+					>
+						Student
+					</button>
+					<button
+						type="button"
+						role="tab"
+						class="tab {role === 'unit_coordinator' ? 'tab-active' : ''}"
+						onclick={() => (role = 'unit_coordinator')}
+					>
+						Teaching Staff
+					</button>
+				</div>
 				<div class="grid grid-cols-2 gap-3">
 					<label class="flex flex-col gap-1">
 						<span class="text-sm font-medium">First Name</span>

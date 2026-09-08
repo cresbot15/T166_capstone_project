@@ -1,9 +1,10 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { api, type GroupResponse, type UnitResponse } from '$lib/api';
+	import { api, type GroupResponse } from '$lib/api';
 	import { token, activeUnit } from '$lib/stores';
 	import { formatSlot } from '$lib/timeslots';
+	import { REQUIREMENT_LABELS } from '$lib/groupRequirements';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import SectionCard from '$lib/components/SectionCard.svelte';
 
@@ -17,12 +18,6 @@
 	let creating = $state(false);
 	let joining = $state(false);
 	let leaving = $state(false);
-
-	const REQUIREMENT_LABELS: Record<string, (unit: UnitResponse) => string> = {
-		min_group_size: (unit) => `Needs at least ${unit.min_group_size} members.`,
-		common_time_slot: () => 'No time slot is shared by all members yet.',
-		max_new_students: (unit) => `Too many new students for this group (unit max: ${unit.max_new_students}).`
-	};
 
 	onMount(async () => {
 		if (!$token) {

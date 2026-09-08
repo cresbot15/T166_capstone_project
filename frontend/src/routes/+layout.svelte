@@ -2,7 +2,7 @@
 	import '../app.css';
 	import { onMount } from 'svelte';
 	import { get } from 'svelte/store';
-	import { token, user, activeUnit } from '$lib/stores';
+	import { token, user, activeUnit, unitRole } from '$lib/stores';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { api, type UnitResponse } from '$lib/api';
@@ -40,10 +40,33 @@
 		goto('/');
 	}
 
+	async function refreshUnitRole(unitId: number | null) {
+		if (unitId === null) {
+			unitRole.set(null);
+			return;
+		}
+		try {
+			const profile = await api.getMyUnitProfile(unitId);
+			unitRole.set(profile.role);
+		} catch {
+			unitRole.set(null);
+		}
+	}
+
 	function switchUnit(unit: UnitResponse) {
 		activeUnit.set(unit);
 		goto('/home');
 	}
+
+	// Refetches whenever the active unit changes for any reason — initial load,
+	// a fresh login setting it for the first time, or switching units — rather
+	// than only on this layout's own mount, which a client-side login/switch
+	// never re-triggers.
+	$effect(() => {
+		refreshUnitRole($activeUnit?.id ?? null);
+	});
+
+	const isUnitStaff = $derived($unitRole === 'owner' || $unitRole === 'administrator');
 </script>
 
 {#if $token}
@@ -81,6 +104,29 @@
 			>
 				Profile
 			</a>
+			{#if isUnitStaff}
+				<a
+					href="/admin/members"
+					class="btn btn-ghost btn-sm"
+					class:btn-active={$page.url.pathname === '/admin/members'}
+				>
+					Manage Members
+				</a>
+				<a
+					href="/admin/groups"
+					class="btn btn-ghost btn-sm"
+					class:btn-active={$page.url.pathname === '/admin/groups'}
+				>
+					Manage Groups
+				</a>
+				<a
+					href="/admin/audit-log"
+					class="btn btn-ghost btn-sm"
+					class:btn-active={$page.url.pathname === '/admin/audit-log'}
+				>
+					Audit Log
+				</a>
+			{/if}
 		</div>
 		<div class="navbar-end">
 			<button class="btn btn-ghost btn-sm" onclick={logout}>Logout</button>

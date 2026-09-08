@@ -26,6 +26,7 @@ export interface UserResponse {
 	first_name: string;
 	last_name: string;
 	email: string;
+	role: string;
 }
 
 export interface TokenResponse {
@@ -88,9 +89,27 @@ export interface GroupJoinResponse {
 	group?: GroupResponse;
 }
 
+export interface UnitEventResponse {
+	id: number;
+	unit_id: number;
+	event_type: string;
+	actor_user_id: number | null;
+	actor_name: string | null;
+	subject_user_id: number | null;
+	subject_name: string | null;
+	group_id: number | null;
+	detail: Record<string, unknown> | null;
+	created_at: string;
+}
+
 export const api = {
-	register: (data: { first_name: string; last_name: string; email: string; password: string }) =>
-		req<UserResponse>('POST', '/auth/register', data),
+	register: (data: {
+		first_name: string;
+		last_name: string;
+		email: string;
+		password: string;
+		role?: 'student' | 'unit_coordinator';
+	}) => req<UserResponse>('POST', '/auth/register', data),
 	login: (email: string, password: string) =>
 		req<TokenResponse>('POST', '/auth/login', { email, password }),
 	getMe: () => req<UserResponse>('GET', '/users/me'),
@@ -113,6 +132,23 @@ export const api = {
 	setMemberRole: (unitId: number, userId: number, role: 'administrator' | 'student') =>
 		req<UnitMembershipResponse>('PATCH', `/units/${unitId}/members/${userId}`, { role }),
 	getTimeSlots: () => req<string[]>('GET', '/time-slots'),
+	exportUnitStudents: async (unitId: number): Promise<void> => {
+		const res = await fetch(`${BASE}/units/${unitId}/export`, { headers: authHeaders() });
+		if (!res.ok) {
+			const data = await res.json().catch(() => ({}));
+			throw new Error(data.detail || 'Export failed');
+		}
+		const blob = await res.blob();
+		const disposition = res.headers.get('Content-Disposition') ?? '';
+		const match = disposition.match(/filename="?([^"]+)"?/);
+		const filename = match?.[1] ?? 'export.csv';
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = filename;
+		a.click();
+		URL.revokeObjectURL(url);
+	},
 
 	createGroup: (unitId: number, isPublic: boolean) =>
 		req<GroupResponse>('POST', '/groups/create', { unit_id: unitId, is_public: isPublic }),
@@ -123,5 +159,23 @@ export const api = {
 	getRecommendedTimes: (unitId: number, groupId: number) =>
 		req<string[]>('GET', `/groups/${unitId}/${groupId}/recommended-times`),
 	leaveGroup: (unitId: number, groupId: number) =>
-		req<null>('DELETE', `/groups/${unitId}/${groupId}/leave`)
+		req<null>('DELETE', `/groups/${unitId}/${groupId}/leave`),
+	removeGroupMember: (unitId: number, groupId: number, userId: number) =>
+		req<null>('DELETE', `/groups/${unitId}/${groupId}/members/${userId}`),
+	getUnitEvents: (
+		unitId: number,
+		params?: { groupId?: number; userId?: number; limit?: number; offset?: number }
+	) => {
+		const qs = new URLSearchParams();
+		if (params?.limit !== undefined) qs.set('limit', String(params.limit));
+		if (params?.offset !== undefined) qs.set('offset', String(params.offset));
+		const query = qs.toString() ? `?${qs.toString()}` : '';
+		if (params?.groupId !== undefined) {
+			return req<UnitEventResponse[]>('GET', `/events/${unitId}/group/${params.groupId}${query}`);
+		}
+		if (params?.userId !== undefined) {
+			return req<UnitEventResponse[]>('GET', `/events/${unitId}/user/${params.userId}${query}`);
+		}
+		return req<UnitEventResponse[]>('GET', `/events/${unitId}${query}`);
+	}
 };

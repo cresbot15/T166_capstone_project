@@ -7,9 +7,6 @@
 
 	let view = $state<'students' | 'groups'>('students');
 	let search = $state('');
-	let isOwner = $state(false);
-	let isStaff = $state(false);
-	let roleUpdateError = $state('');
 
 	let members = $state<UnitMemberResponse[]>([]);
 	let membersError = $state('');
@@ -22,7 +19,6 @@
 
 	let filtersOpen = $state(false);
 	let statusFilter = $state<'all' | 'pending' | 'provisional'>('all');
-	let typeFilter = $state<'all' | 'public' | 'private'>('all');
 	let openSlotsOnly = $state(false);
 	let matchesMyAvailability = $state(false);
 
@@ -31,7 +27,6 @@
 	const groupFilters = $derived(
 		[
 			statusFilter !== 'all' && ((g: GroupResponse) => g.status === statusFilter),
-			typeFilter !== 'all' && ((g: GroupResponse) => g.is_public === (typeFilter === 'public')),
 			openSlotsOnly &&
 				((g: GroupResponse) => g.members.length < ($activeUnit?.max_group_size ?? Infinity)),
 			matchesMyAvailability &&
@@ -42,7 +37,6 @@
 	const filteredGroups = $derived(groups.filter((g) => groupFilters.every((f) => f(g))));
 	const activeFilterCount = $derived(
 		(statusFilter !== 'all' ? 1 : 0) +
-			(typeFilter !== 'all' ? 1 : 0) +
 			(openSlotsOnly ? 1 : 0) +
 			(matchesMyAvailability ? 1 : 0)
 	);
@@ -85,12 +79,9 @@
 		}
 		try {
 			const profile = await api.getMyUnitProfile($activeUnit.id);
-			isOwner = profile.role === 'owner';
-			isStaff = profile.role === 'owner' || profile.role === 'administrator';
 			myTimePreferences = profile.time_preferences;
 		} catch {
-			isOwner = false;
-			isStaff = false;
+			// no-op — myTimePreferences stays at its default
 		}
 		try {
 			members = await api.getUnitMembers($activeUnit.id);
@@ -103,17 +94,6 @@
 			groupsError = e instanceof Error ? e.message : 'Could not load groups';
 		}
 	});
-
-	async function changeRole(member: UnitMemberResponse, role: 'administrator' | 'student') {
-		if (!$activeUnit) return;
-		roleUpdateError = '';
-		try {
-			const updated = await api.setMemberRole($activeUnit.id, member.user_id, role);
-			members = members.map((m) => (m.user_id === member.user_id ? { ...m, role: updated.role } : m));
-		} catch (e: unknown) {
-			roleUpdateError = e instanceof Error ? e.message : 'Could not update role';
-		}
-	}
 
 	async function joinGroup(group: GroupResponse) {
 		if (!group.preference_code) return;
@@ -171,7 +151,6 @@
 				bind:value={search}
 			/>
 
-			{#if roleUpdateError}<p class="text-error text-sm mb-2">{roleUpdateError}</p>{/if}
 			{#if membersError}<p class="text-error text-sm mb-2">{membersError}</p>{/if}
 
 			<div class="flex flex-col gap-3">
@@ -193,19 +172,7 @@
 								{#if member.is_new_student}
 									<span class="badge badge-accent badge-sm whitespace-nowrap">New student</span>
 								{/if}
-								{#if isOwner && member.role !== 'owner'}
-									<select
-										class="select select-bordered select-sm"
-										value={member.role}
-										onchange={(e) =>
-											changeRole(member, e.currentTarget.value as 'administrator' | 'student')}
-									>
-										<option value="student">Student</option>
-										<option value="administrator">Administrator</option>
-									</select>
-								{:else}
-									<span class="badge badge-ghost capitalize">{member.role}</span>
-								{/if}
+								<span class="badge badge-ghost capitalize">{member.role}</span>
 							</div>
 						</div>
 					</div>
@@ -217,7 +184,7 @@
 		</div>
 
 		<div class="{view === 'groups' ? 'block' : 'hidden'} md:block">
-			<h2 class="font-bold text-lg mb-3">{isStaff ? 'Groups' : 'Public Groups'}</h2>
+			<h2 class="font-bold text-lg mb-3">Public Groups</h2>
 
 			<button
 				type="button"
@@ -240,16 +207,6 @@
 								<option value="provisional">Provisional</option>
 							</select>
 						</label>
-						{#if isStaff}
-							<label class="flex flex-col gap-1">
-								<span class="text-sm font-medium">Group type</span>
-								<select class="select select-bordered select-sm" bind:value={typeFilter}>
-									<option value="all">All</option>
-									<option value="public">Public</option>
-									<option value="private">Private</option>
-								</select>
-							</label>
-						{/if}
 						<label class="flex items-center gap-2">
 							<input type="checkbox" class="checkbox checkbox-sm" bind:checked={openSlotsOnly} />
 							<span class="text-sm">Has open spots</span>
@@ -274,17 +231,12 @@
 					<div class="card bg-base-100 shadow-sm rounded-2xl">
 						<div class="card-body flex-row items-center justify-between gap-4">
 							<div class="min-w-0 flex-1">
-								<p class="font-bold">Group {g.preference_code}</p>
+								<p class="font-bold">Group {g.id}</p>
 								<p class="text-sm text-base-content/60">
 									{g.members.map((m) => m.first_name).join(', ') || 'No members yet'}
 								</p>
 							</div>
 							<div class="flex items-center flex-wrap justify-end gap-2 flex-shrink-0">
-								{#if isStaff}
-									<span class="badge badge-ghost whitespace-nowrap"
-										>{g.is_public ? 'Public' : 'Private'}</span
-									>
-								{/if}
 								<span
 									class="badge whitespace-nowrap {g.status === 'pending'
 										? 'badge-success'
