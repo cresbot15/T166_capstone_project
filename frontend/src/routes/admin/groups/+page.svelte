@@ -44,6 +44,9 @@
 
 	async function removeMember(group: GroupResponse, userId: number) {
 		if (!$activeUnit) return;
+		const member = group.members.find((m) => m.id === userId);
+		const name = member ? `${member.first_name} ${member.last_name}` : 'this member';
+		if (!confirm(`Remove ${name} from Group ${group.id}?`)) return;
 		removeError = '';
 		const key = `${group.id}-${userId}`;
 		removingKey = key;
