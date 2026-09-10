@@ -1,4 +1,4 @@
-const BASE = 'http://localhost:8000';
+const BASE = '/api';
 
 function authHeaders(): Record<string, string> {
 	const token = typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null;

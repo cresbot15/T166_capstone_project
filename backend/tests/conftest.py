@@ -77,7 +77,7 @@ def auth_headers(client, make_user):
 
 @pytest.fixture()
 def create_unit(client):
-    def _create_unit(headers, name=TEST_UNIT_NAME, min_group_size=TEST_MIN_GROUP_SIZE, max_group_size=TEST_MAX_GROUP_SIZE, time_slots=None, max_new_students=None):
+    def _create_unit(headers, name=TEST_UNIT_NAME, min_group_size=TEST_MIN_GROUP_SIZE, max_group_size=TEST_MAX_GROUP_SIZE, time_slots=None, max_new_students=None, formation_start_date=None, formation_end_date=None):
         body = {
             "name": name,
             "min_group_size": min_group_size,
@@ -87,6 +87,10 @@ def create_unit(client):
             body["time_slots"] = time_slots
         if max_new_students is not None:
             body["max_new_students"] = max_new_students
+        if formation_start_date is not None:
+            body["formation_start_date"] = formation_start_date
+        if formation_end_date is not None:
+            body["formation_end_date"] = formation_end_date
         r = client.post("/units/create", json=body, headers=headers)
         assert r.status_code == 201, r.text
         return r.json()

@@ -1,9 +1,11 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String
+from sqlalchemy import Boolean, ForeignKey, String
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from src.constants import TIME_SLOT_ORDER
+from src.constants import GROUP_LIFECYCLE_ACTIVE, GROUP_LIFECYCLES
 from src.database import Base
+from src.services.availability import common_time_slots
 from src.services.requirements import evaluate_group
 from src.services.timestamps import utc_now
 
@@ -27,6 +29,9 @@ class Group(Base):
     unit_id: Mapped[int] = mapped_column(ForeignKey("units.id"))
     creator_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     is_public: Mapped[bool] = mapped_column(Boolean, default=False)
+    lifecycle: Mapped[str] = mapped_column(
+        Enum(*GROUP_LIFECYCLES, name="group_lifecycle"), default=GROUP_LIFECYCLE_ACTIVE
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     unit = relationship("Unit", back_populates="groups")
@@ -36,16 +41,7 @@ class Group(Base):
 
     @property
     def common_time_slots(self) -> list[str]:
-        if not self.members:
-            return []
-        sets = []
-        for m in self.members:
-            profile = next((p for p in m.unit_profiles if p.unit_id == self.unit_id), None)
-            sets.append(set(profile.time_preferences if profile else []))
-        result = sets[0]
-        for s in sets[1:]:
-            result = result & s
-        return [slot for slot in TIME_SLOT_ORDER if slot in result]
+        return common_time_slots(self.members, self.unit_id)
 
     @property
     def unmet_requirements(self) -> list[str]:

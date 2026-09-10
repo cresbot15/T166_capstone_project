@@ -13,11 +13,8 @@ def register(user: UserRegister, db: Session = Depends(get_db)):
     '''Attempt to register a user
 
     Email must be unique among ALL other users'''
-    conflicts = []
     if db.query(User).filter(User.email == user.email).first():
-        conflicts.append("Email already in use")
-    if conflicts:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=conflicts)
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already in use")
 
     db_user = User(
         first_name=user.first_name,

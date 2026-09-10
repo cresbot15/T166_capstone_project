@@ -4,9 +4,7 @@ from sqlalchemy.orm import Session
 from src.constants import (
     GROUP_EVENT_CREATED,
     GROUP_EVENT_MEMBER_JOINED,
-    GROUP_EVENT_MEMBER_LEFT,
-    GROUP_EVENT_MEMBER_REMOVED,
-    TIME_SLOT_ORDER,
+    GROUP_LIFECYCLE_ACTIVE,
     UNIT_STAFF_ROLES,
 )
 from src.database import get_db
@@ -15,6 +13,9 @@ from src.models.unit import Unit, UnitMembership
 from src.models.user import User
 from src.schemas.group import GroupJoin, GroupJoinResponse, GroupResponse, GroupCreate
 from src.services.audit import record
+from src.services.availability import common_time_slots
+from src.services.formation import require_formation_open
+from src.services.groups import remove_member
 from src.services.auth import get_current_user, require_unit_staff
 from src.services.codes import generate_preference_code
 
@@ -25,23 +26,6 @@ def _group_in_unit_or_404(db: Session, unit_id: int, group_id: int) -> Group:
     if group is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
     return group
-
-def _remove_member(db: Session, group: Group, user_id: int, actor_user_id: int) -> None:
-    """Removes a member from a group.
-    """
-    membership = db.query(GroupMembership).filter_by(user_id=user_id, group_id=group.id).first()
-    db.delete(membership)
-
-    left_voluntarily = actor_user_id == user_id
-    record(
-        db,
-        group.unit_id,
-        GROUP_EVENT_MEMBER_LEFT if left_voluntarily else GROUP_EVENT_MEMBER_REMOVED,
-        actor_user_id=actor_user_id,
-        subject_user_id=user_id,
-        group=group,
-    )
-    db.commit()
 
 @router.post("/join", response_model=GroupJoinResponse)
 def join_group(body: GroupJoin, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -58,7 +42,9 @@ def join_group(body: GroupJoin, db: Session = Depends(get_db), current_user: Use
     if group.unit not in current_user.units:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is not enrolled in this unit")
 
-    if not group.members:
+    require_formation_open(group.unit)
+
+    if group.lifecycle != GROUP_LIFECYCLE_ACTIVE or not group.members:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Group is no longer active")
 
     if len(group.members) >= group.unit.max_group_size:
@@ -82,6 +68,8 @@ def create_group(body: GroupCreate, db: Session = Depends(get_db), current_user:
 
     if unit not in current_user.units:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enrolled in this unit")
+
+    require_formation_open(unit)
 
     # User is already in a group for this unit
     if any(g.unit_id == unit.id for g in current_user.groups):
@@ -118,7 +106,9 @@ def get_groups(unit_id: int, db: Session = Depends(get_db), current_user: User =
     if not membership:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enrolled in this unit")
 
-    query = db.query(Group).filter(Group.unit_id == unit_id)
+    query = db.query(Group).filter(
+        Group.unit_id == unit_id, Group.lifecycle == GROUP_LIFECYCLE_ACTIVE
+    )
     if membership.role not in UNIT_STAFF_ROLES:
         member_group_ids = [g.id for g in current_user.groups if g.unit_id == unit_id]
         query = query.filter(or_(Group.is_public == True, Group.id.in_(member_group_ids)))
@@ -137,7 +127,15 @@ def get_joinable_groups(unit_id: int, db: Session = Depends(get_db), current_use
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enrolled in this unit")
 
     own_group_ids = {g.id for g in current_user.groups if g.unit_id == unit_id}
-    groups = db.query(Group).filter(Group.unit_id == unit_id, Group.is_public == True).all()
+    groups = (
+        db.query(Group)
+        .filter(
+            Group.unit_id == unit_id,
+            Group.is_public == True,
+            Group.lifecycle == GROUP_LIFECYCLE_ACTIVE,
+        )
+        .all()
+    )
 
     return [
         GroupResponse.model_validate(g)
@@ -154,41 +152,33 @@ def get_recommended_times(unit_id: int, group_id: int, db: Session = Depends(get
 
     other_members = [m for m in group.members if m.id != current_user.id]
 
-    if not other_members:
-        return []
-
-    sets = []
-    for m in other_members:
-        profile = next((p for p in m.unit_profiles if p.unit_id == unit_id), None)
-        sets.append(set(profile.time_preferences if profile else []))
-
-    result = sets[0]
-    for s in sets[1:]:
-        result = result & s
-
-    return [slot for slot in TIME_SLOT_ORDER if slot in result]
+    return common_time_slots(other_members, unit_id)
 
 @router.delete("/{unit_id}/{group_id}/leave", response_model=None, status_code=status.HTTP_204_NO_CONTENT)
 def leave_group(unit_id: int, group_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     '''Attempts to leave the given group in the given unit as the logged in user
     
-    If the user leaving the group would leave the group empty, it is deleted'''
+    If the user leaving the group would leave the group empty, it is dissolved'''
     group = _group_in_unit_or_404(db, unit_id, group_id)
 
     if current_user not in group.members:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a member of this group")
 
-    _remove_member(db, group, current_user.id, actor_user_id=current_user.id)
+    require_formation_open(group.unit)
+
+    remove_member(db, group, current_user.id, actor_user_id=current_user.id)
+    db.commit()
 
 @router.delete("/{unit_id}/{group_id}/members/{user_id}", response_model=None, status_code=status.HTTP_204_NO_CONTENT)
 def remove_group_member(unit_id: int, group_id: int, user_id: int, db: Session = Depends(get_db), _staff: UnitMembership = Depends(require_unit_staff)):
     '''Removes the given member from the given group in the given unit
 
     Owners and administrators only. If removing the member would leave the group
-    empty, it is deleted. Being removed can push a group into provisional.'''
+    empty, it is dissolved. Being removed can push a group into provisional.'''
     group = _group_in_unit_or_404(db, unit_id, group_id)
 
     if not any(m.id == user_id for m in group.members):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User is not a member of this group")
 
-    _remove_member(db, group, user_id, actor_user_id=_staff.user_id)
+    remove_member(db, group, user_id, actor_user_id=_staff.user_id)
+    db.commit()

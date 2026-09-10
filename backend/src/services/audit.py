@@ -1,10 +1,7 @@
-from typing import TYPE_CHECKING
-
 from sqlalchemy.orm import Session
 from src.models.unit_event import UnitEvent
 
-if TYPE_CHECKING:
-    from src.models.group import Group
+from src.models.group import Group
 
 
 def record(

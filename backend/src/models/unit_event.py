@@ -1,9 +1,10 @@
 from datetime import datetime
 
-from sqlalchemy import JSON, DateTime, Enum, ForeignKey
+from sqlalchemy import JSON, Enum, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.constants import EVENT_TYPES
 from src.database import Base
+from src.models.types import UtcDateTime
 from src.services.timestamps import utc_now
 
 
@@ -20,7 +21,7 @@ class UnitEvent(Base):
 
     detail: Mapped[dict | None] = mapped_column(JSON)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, index=True)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=utc_now, index=True)
 
     unit = relationship("Unit")
     actor_user = relationship("User", foreign_keys=[actor_user_id])
