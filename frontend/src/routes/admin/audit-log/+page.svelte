@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { token, activeUnit } from '$lib/stores';
 	import { api, type UnitEventResponse, type GroupResponse, type UnitMemberResponse } from '$lib/api';
+	import { eventLabel } from '$lib/auditLog';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 
 	let events = $state<UnitEventResponse[]>([]);
@@ -71,32 +72,6 @@
 		await loadEvents();
 	});
 
-	function eventLabel(event: UnitEventResponse): string {
-		const actor = event.actor_name ?? 'Someone';
-		const subject = event.subject_name;
-		switch (event.event_type) {
-			case 'unit.member_joined':
-				return `${actor} joined the unit`;
-			case 'unit.member_left':
-				return `${actor} left the unit`;
-			case 'unit.role_changed':
-				return `${actor} changed ${subject ?? 'a member'}'s role`;
-			case 'group.created':
-				return `${actor} created a group`;
-			case 'group.deleted':
-				return `${actor} deleted a group`;
-			case 'group.member_joined':
-				return `${actor} joined a group`;
-			case 'group.member_left':
-				return `${actor} left a group`;
-			case 'group.member_removed':
-				return `${actor} removed ${subject ?? 'a member'} from a group`;
-			case 'group.status_changed':
-				return `A group's status changed`;
-			default:
-				return event.event_type;
-		}
-	}
 </script>
 
 <PageHeader
