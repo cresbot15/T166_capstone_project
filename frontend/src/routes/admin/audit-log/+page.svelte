@@ -114,9 +114,9 @@
 	<div class="flex flex-col gap-2">
 		{#each events as event}
 			<div class="card bg-base-100 shadow-sm rounded-2xl">
-				<div class="card-body py-3 px-4 flex-row items-center gap-4">
+				<div class="card-body py-3 px-4 grid grid-cols-[1fr_auto] items-center gap-4">
 					<p class="text-sm min-w-0">{eventLabel(event)}</p>
-					<p class="text-xs text-base-content/60 whitespace-nowrap ml-auto">
+					<p class="text-xs text-base-content/60 whitespace-nowrap justify-self-end">
 						{new Date(event.created_at).toLocaleString()}
 					</p>
 				</div>
