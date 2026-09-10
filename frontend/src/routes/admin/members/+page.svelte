@@ -11,6 +11,10 @@
 	let roleUpdateError = $state('');
 	let exportError = $state('');
 	let exporting = $state(false);
+	let saving = $state(false);
+	let pendingRoles = $state<Record<number, 'administrator' | 'student'>>({});
+
+	const hasPendingChanges = $derived(Object.keys(pendingRoles).length > 0);
 
 	onMount(async () => {
 		if (!$token) {
@@ -39,16 +43,39 @@
 		}
 	});
 
-	async function changeRole(member: UnitMemberResponse, role: 'administrator' | 'student') {
+	function setPendingRole(member: UnitMemberResponse, role: 'administrator' | 'student') {
+		if (role === member.role) {
+			const { [member.user_id]: _, ...rest } = pendingRoles;
+			pendingRoles = rest;
+		} else {
+			pendingRoles = { ...pendingRoles, [member.user_id]: role };
+		}
+	}
+
+	function discardChanges() {
+		pendingRoles = {};
+		roleUpdateError = '';
+	}
+
+	async function saveChanges() {
 		if (!$activeUnit) return;
 		roleUpdateError = '';
+		saving = true;
 		try {
-			const updated = await api.setMemberRole($activeUnit.id, member.user_id, role);
-			members = members.map((m) =>
-				m.user_id === member.user_id ? { ...m, role: updated.role } : m
+			const updates = await Promise.all(
+				Object.entries(pendingRoles).map(([userId, role]) =>
+					api.setMemberRole($activeUnit!.id, Number(userId), role)
+				)
 			);
+			const updatedById = new Map(updates.map((u) => [u.user_id, u.role]));
+			members = members.map((m) =>
+				updatedById.has(m.user_id) ? { ...m, role: updatedById.get(m.user_id)! } : m
+			);
+			pendingRoles = {};
 		} catch (e: unknown) {
-			roleUpdateError = e instanceof Error ? e.message : 'Could not update role';
+			roleUpdateError = e instanceof Error ? e.message : 'Could not update roles';
+		} finally {
+			saving = false;
 		}
 	}
 
@@ -86,16 +113,16 @@
 		{#each members as member}
 			<div class="card bg-base-100 shadow-sm rounded-2xl">
 				<div class="card-body flex-row items-center justify-between gap-4">
-					<div class="min-w-0 flex-1">
+					<a href={`/admin/students/${member.user_id}`} class="min-w-0 flex-1 hover:underline">
 						<p class="font-bold">{member.first_name} {member.last_name}</p>
 						<p class="text-sm text-base-content/60">{member.email}</p>
-					</div>
+					</a>
 					{#if isOwner && member.role !== 'owner'}
 						<select
 							class="select select-bordered select-sm"
-							value={member.role}
+							value={pendingRoles[member.user_id] ?? member.role}
 							onchange={(e) =>
-								changeRole(member, e.currentTarget.value as 'administrator' | 'student')}
+								setPendingRole(member, e.currentTarget.value as 'administrator' | 'student')}
 						>
 							<option value="student">Student</option>
 							<option value="administrator">Administrator</option>
@@ -110,4 +137,15 @@
 			<p class="text-sm text-base-content/60">No members in this unit yet.</p>
 		{/if}
 	</div>
+
+	{#if hasPendingChanges}
+		<div class="sticky bottom-4 mt-6 flex justify-end gap-2">
+			<button type="button" class="btn btn-ghost btn-sm" disabled={saving} onclick={discardChanges}>
+				Discard changes
+			</button>
+			<button type="button" class="btn btn-primary btn-sm" disabled={saving} onclick={saveChanges}>
+				{saving ? 'Saving…' : 'Save changes'}
+			</button>
+		</div>
+	{/if}
 </div>
