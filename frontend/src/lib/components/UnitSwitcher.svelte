@@ -1,13 +1,16 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
 	import type { UnitResponse } from '$lib/api';
 
 	let {
 		units,
 		activeUnitId,
+		canCreateUnit = false,
 		onSwitch
 	}: {
 		units: UnitResponse[];
 		activeUnitId: number | null;
+		canCreateUnit?: boolean;
 		onSwitch: (unit: UnitResponse) => void;
 	} = $props();
 
@@ -26,5 +29,10 @@
 				</button>
 			</li>
 		{/each}
+		{#if canCreateUnit}
+			<li>
+				<button onclick={() => goto('/onboarding/unit')}>+ Add another unit</button>
+			</li>
+		{/if}
 	</ul>
 </div>

@@ -73,7 +73,12 @@
 	<div class="navbar bg-primary text-primary-content px-4">
 		<div class="navbar-start gap-2">
 			<span class="font-extrabold text-lg">TeamUp!</span>
-			<UnitSwitcher units={myUnits} activeUnitId={$activeUnit?.id ?? null} onSwitch={switchUnit} />
+			<UnitSwitcher
+				units={myUnits}
+				activeUnitId={$activeUnit?.id ?? null}
+				canCreateUnit={$user?.role === 'unit_coordinator'}
+				onSwitch={switchUnit}
+			/>
 		</div>
 		<div class="navbar-center gap-1">
 			<a
