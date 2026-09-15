@@ -81,7 +81,7 @@ def join_unit(body: UnitJoin, db: Session = Depends(get_db), current_user: User 
 def leave_unit(unit_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     '''Attempts to remove the logged in user from the given unit
 
-    Unit owners cannot leave units.'''
+    Unit owners cannot leave units. They must trasnfer their ownership of the unit to another unit first.'''
     membership = db.query(UnitMembership).filter_by(user_id=current_user.id, unit_id=unit_id).first()
     if not membership:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not enrolled in unit")

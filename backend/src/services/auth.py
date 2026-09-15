@@ -5,7 +5,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer
 from jose import jwt, JWTError
 from sqlalchemy.orm import Session
-from src.constants import UNIT_STAFF_ROLES, USER_ROLE_COORDINATOR
+from src.constants import UNIT_ROLE_OWNER, UNIT_STAFF_ROLES, USER_ROLE_COORDINATOR
 from src.database import get_db
 from src.models.unit import UnitMembership
 from src.models.user import User
@@ -59,9 +59,17 @@ def require_coordinator(current_user: User = Depends(get_current_user)) -> User:
     return current_user
 
 def require_unit_staff(unit_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> UnitMembership:
-    """Only let unit owners and administrators through. Reads unit_id from the path."""
+    """Only let unit owners and administrators through."""
     membership = db.query(UnitMembership).filter_by(user_id=current_user.id, unit_id=unit_id).first()
     if membership is None or membership.role not in UNIT_STAFF_ROLES:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only unit owners and administrators can do this")
+
+    return membership
+
+def require_unit_owner(unit_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> UnitMembership:
+    """Only let the unit owner through."""
+    membership = db.query(UnitMembership).filter_by(user_id=current_user.id, unit_id=unit_id).first()
+    if membership is None or membership.role != UNIT_ROLE_OWNER:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the unit owner can do this")
 
     return membership
