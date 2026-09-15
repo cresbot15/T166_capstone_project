@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+from src.constants import GROUP_EVENT_MEMBER_ADDED
 from src.services.requirements import COMMON_TIME_SLOT, MAX_NEW_STUDENTS, MIN_GROUP_SIZE
 from src.services.timestamps import utc_now
 from tests.conftest import (
@@ -274,6 +275,146 @@ def test_staff_can_remove_a_member_from_a_group(client, auth_headers, create_uni
     assert response.status_code == 204, response.text
 
     assert _member_ids(client, owner_headers, unit["id"], group["id"]) == [member_ids[0]]
+
+def _unit_member_id(client, headers, unit_id, email):
+    response = client.get(f"/units/{unit_id}/members", headers=headers)
+    assert response.status_code == 200, response.text
+    return next(m["user_id"] for m in response.json() if m["email"] == email)
+
+def test_staff_can_add_a_member_to_a_group(client, auth_headers, create_unit, enrol_user, create_group):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME)
+
+    creator_headers = enrol_user(unit["code"], email="creator@test.com")
+    group = create_group(creator_headers, unit["id"])
+
+    placed_email = "placed@test.com"
+    enrol_user(unit["code"], email=placed_email)
+    placed_id = _unit_member_id(client, owner_headers, unit["id"], placed_email)
+
+    response = client.put(f"/groups/{unit['id']}/{group['id']}/members/{placed_id}", headers=owner_headers)
+    assert response.status_code == 204, response.text
+
+    assert placed_id in _member_ids(client, owner_headers, unit["id"], group["id"])
+
+def test_staff_can_add_a_member_after_formation_closes(monkeypatch, client, auth_headers, create_unit, enrol_user, create_group, join_group):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    now = utc_now()
+    unit = create_unit(
+        headers=owner_headers,
+        name=TEST_UNIT_NAME,
+        formation_end_date=(now + timedelta(days=1)).isoformat(),
+    )
+    group = create_group(owner_headers, unit["id"])
+
+    placed_email = "placed@test.com"
+    placed_headers = enrol_user(unit["code"], email=placed_email)
+    placed_id = _unit_member_id(client, owner_headers, unit["id"], placed_email)
+
+    _travel_to(monkeypatch, now + timedelta(days=2))
+
+    # The student can no longer join, but staff can still place them
+    assert join_group(placed_headers, group["preference_code"]).status_code == 409
+
+    response = client.put(f"/groups/{unit['id']}/{group['id']}/members/{placed_id}", headers=owner_headers)
+    assert response.status_code == 204, response.text
+
+def test_adding_a_member_is_recorded_separately_from_joining(client, auth_headers, create_unit, enrol_user, create_group):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME)
+
+    creator_headers = enrol_user(unit["code"], email="creator@test.com")
+    group = create_group(creator_headers, unit["id"])
+
+    placed_email = "placed@test.com"
+    enrol_user(unit["code"], email=placed_email)
+    placed_id = _unit_member_id(client, owner_headers, unit["id"], placed_email)
+    owner_id = _unit_member_id(client, owner_headers, unit["id"], TEST_USER_EMAIL)
+
+    assert client.put(f"/groups/{unit['id']}/{group['id']}/members/{placed_id}", headers=owner_headers).status_code == 204
+
+    response = client.get(f"/events/{unit['id']}/group/{group['id']}", headers=owner_headers)
+    assert response.status_code == 200, response.text
+    added = next(e for e in response.json() if e["event_type"] == GROUP_EVENT_MEMBER_ADDED)
+
+    assert added["actor_user_id"] == owner_id
+    assert added["subject_user_id"] == placed_id
+
+def test_adding_a_member_already_in_the_group_changes_nothing(client, auth_headers, create_unit, enrol_user, create_group):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME)
+
+    creator_email = "creator@test.com"
+    creator_headers = enrol_user(unit["code"], email=creator_email)
+    group = create_group(creator_headers, unit["id"])
+    creator_id = _unit_member_id(client, owner_headers, unit["id"], creator_email)
+
+    response = client.put(f"/groups/{unit['id']}/{group['id']}/members/{creator_id}", headers=owner_headers)
+    assert response.status_code == 204, response.text
+
+    assert _member_ids(client, owner_headers, unit["id"], group["id"]) == [creator_id]
+
+    events = client.get(f"/events/{unit['id']}/group/{group['id']}", headers=owner_headers).json()
+    assert [e for e in events if e["event_type"] == GROUP_EVENT_MEMBER_ADDED] == []
+
+def test_staff_cannot_add_a_member_who_is_in_another_group(client, auth_headers, create_unit, enrol_user, create_group):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME)
+
+    first_email = "first@test.com"
+    first_headers = enrol_user(unit["code"], email=first_email)
+    create_group(first_headers, unit["id"])
+    first_id = _unit_member_id(client, owner_headers, unit["id"], first_email)
+
+    other_headers = enrol_user(unit["code"], email="other@test.com")
+    other_group = create_group(other_headers, unit["id"])
+
+    response = client.put(f"/groups/{unit['id']}/{other_group['id']}/members/{first_id}", headers=owner_headers)
+    assert response.status_code == 409, response.text
+
+def test_staff_cannot_add_a_member_past_max_group_size(client, auth_headers, create_unit, enrol_user, create_group, join_group):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME, max_group_size=2)
+
+    creator_headers = enrol_user(unit["code"], email="creator@test.com")
+    group = create_group(creator_headers, unit["id"])
+    joiner_headers = enrol_user(unit["code"], email="joiner@test.com")
+    assert join_group(joiner_headers, group["preference_code"]).status_code == 200
+
+    placed_email = "placed@test.com"
+    enrol_user(unit["code"], email=placed_email)
+    placed_id = _unit_member_id(client, owner_headers, unit["id"], placed_email)
+
+    response = client.put(f"/groups/{unit['id']}/{group['id']}/members/{placed_id}", headers=owner_headers)
+    assert response.status_code == 409, response.text
+
+def test_staff_cannot_add_a_user_who_is_not_enrolled(client, auth_headers, create_unit, enrol_user, create_group):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME)
+
+    creator_headers = enrol_user(unit["code"], email="creator@test.com")
+    group = create_group(creator_headers, unit["id"])
+
+    outsider_headers = auth_headers(email="outsider@test.com", password=TEST_USER_PASSWORD)
+    other_unit = create_unit(headers=outsider_headers, name="other_unit")
+    outsider_id = _unit_member_id(client, outsider_headers, other_unit["id"], "outsider@test.com")
+
+    assert client.put(f"/groups/{unit['id']}/{group['id']}/members/{outsider_id}", headers=owner_headers).status_code == 404
+    assert client.put(f"/groups/{unit['id']}/{group['id']}/members/9999", headers=owner_headers).status_code == 404
+
+def test_adding_a_member_is_staff_only(client, auth_headers, create_unit, enrol_user, create_group):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME)
+
+    creator_headers = enrol_user(unit["code"], email="creator@test.com")
+    group = create_group(creator_headers, unit["id"])
+
+    placed_email = "placed@test.com"
+    enrol_user(unit["code"], email=placed_email)
+    placed_id = _unit_member_id(client, owner_headers, unit["id"], placed_email)
+
+    response = client.put(f"/groups/{unit['id']}/{group['id']}/members/{placed_id}", headers=creator_headers)
+    assert response.status_code == 403, response.text
 
 def _listed_group_ids(client, headers, unit_id):
     response = client.get(f"/groups/{unit_id}", headers=headers)

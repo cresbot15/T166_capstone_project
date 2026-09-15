@@ -33,6 +33,7 @@ UNIT_EVENT_OWNERSHIP_TRANSFERRED = "unit.ownership_transferred"
 GROUP_EVENT_CREATED = "group.created"
 GROUP_EVENT_DELETED = "group.deleted"
 GROUP_EVENT_MEMBER_JOINED = "group.member_joined"
+GROUP_EVENT_MEMBER_ADDED = "group.member_added"
 GROUP_EVENT_MEMBER_LEFT = "group.member_left"
 GROUP_EVENT_MEMBER_REMOVED = "group.member_removed"
 GROUP_EVENT_STATUS_CHANGED = "group.status_changed"
@@ -44,6 +45,7 @@ EVENT_TYPES: tuple[str, ...] = (
     GROUP_EVENT_CREATED,
     GROUP_EVENT_DELETED,
     GROUP_EVENT_MEMBER_JOINED,
+    GROUP_EVENT_MEMBER_ADDED,
     GROUP_EVENT_MEMBER_LEFT,
     GROUP_EVENT_MEMBER_REMOVED,
     GROUP_EVENT_STATUS_CHANGED,
