@@ -14,7 +14,7 @@ from src.schemas.group import GroupJoin, GroupJoinResponse, GroupResponse, Group
 from src.services.audit import record
 from src.services.availability import common_time_slots
 from src.services.formation import require_formation_open
-from src.services.groups import add_member, ensure_can_join, remove_member
+from src.services.groups import add_member, ensure_can_join, is_full, remove_member
 from src.services.auth import get_current_user, require_unit_staff
 from src.services.codes import generate_preference_code
 
@@ -164,10 +164,12 @@ def leave_group(unit_id: int, group_id: int, db: Session = Depends(get_db), curr
     db.commit()
 
 @router.put("/{unit_id}/{group_id}/members/{user_id}", response_model=None, status_code=status.HTTP_204_NO_CONTENT)
-def add_group_member(unit_id: int, group_id: int, user_id: int, db: Session = Depends(get_db), _staff: UnitMembership = Depends(require_unit_staff)):
+def add_group_member(unit_id: int, group_id: int, user_id: int, override_max_size: bool = False, db: Session = Depends(get_db), _staff: UnitMembership = Depends(require_unit_staff)):
     '''Places the given member of the unit into the given group
 
-    Owners and administrators only, not bound by the unit's formation window.'''
+    Owners and administrators only, not bound by the unit's formation window.
+
+    Pass override_max_size to place a member past the unit's maximum group size.'''
     group = _group_in_unit_or_404(db, unit_id, group_id)
 
     user = db.query(User).filter(User.id == user_id).first()
@@ -181,9 +183,16 @@ def add_group_member(unit_id: int, group_id: int, user_id: int, db: Session = De
     if any(m.id == user_id for m in group.members):
         return
 
-    ensure_can_join(group, user)
+    exceeded_max_size = override_max_size and is_full(group)
+    ensure_can_join(group, user, override_max_size=override_max_size)
 
-    add_member(db, group, user_id, actor_user_id=_staff.user_id)
+    add_member(
+        db,
+        group,
+        user_id,
+        actor_user_id=_staff.user_id,
+        detail={"override_max_size": True} if exceeded_max_size else None,
+    )
     db.commit()
 
 @router.delete("/{unit_id}/{group_id}/members/{user_id}", response_model=None, status_code=status.HTTP_204_NO_CONTENT)

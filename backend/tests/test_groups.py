@@ -313,7 +313,6 @@ def test_staff_can_add_a_member_after_formation_closes(monkeypatch, client, auth
 
     _travel_to(monkeypatch, now + timedelta(days=2))
 
-    # The student can no longer join, but staff can still place them
     assert join_group(placed_headers, group["preference_code"]).status_code == 409
 
     response = client.put(f"/groups/{unit['id']}/{group['id']}/members/{placed_id}", headers=owner_headers)

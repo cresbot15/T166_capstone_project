@@ -15,19 +15,27 @@ from src.models.user import User
 from src.services.audit import record
 
 
-def ensure_can_join(group: Group, user: User) -> None:
-    """Raises 409 unless the given user can be placed in the given group."""
+def is_full(group: Group) -> bool:
+    return len(group.members) >= group.unit.max_group_size
+
+
+def ensure_can_join(group: Group, user: User, override_max_size: bool = False) -> None:
+    """Raises 409 unless the given user can be placed in the given group.
+
+    override_max_size lets staff place a member past the unit's maximum group
+    size.
+    """
     if any(g.unit_id == group.unit_id for g in user.groups):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User is already in a group for this unit")
 
     if group.lifecycle != GROUP_LIFECYCLE_ACTIVE or not group.members:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Group is no longer active")
 
-    if len(group.members) >= group.unit.max_group_size:
+    if not override_max_size and is_full(group):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Group is full")
 
 
-def add_member(db: Session, group: Group, user_id: int, actor_user_id: int) -> None:
+def add_member(db: Session, group: Group, user_id: int, actor_user_id: int, detail: dict | None = None) -> None:
     """Adds a member to a group, without committing.
 
     Caller needs to commit transaction.
@@ -42,6 +50,7 @@ def add_member(db: Session, group: Group, user_id: int, actor_user_id: int) -> N
         actor_user_id=actor_user_id,
         subject_user_id=user_id,
         group=group,
+        detail=detail,
     )
 
 
