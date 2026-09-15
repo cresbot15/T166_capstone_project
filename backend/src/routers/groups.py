@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from src.constants import (
     GROUP_EVENT_CREATED,
     GROUP_EVENT_MEMBER_JOINED,
@@ -20,6 +20,10 @@ from src.services.auth import get_current_user, require_unit_staff
 from src.services.codes import generate_preference_code
 
 router = APIRouter()
+GROUP_LOAD_OPTIONS = (
+    selectinload(Group.unit),
+    selectinload(Group.members).selectinload(User.unit_profiles),
+)
 
 def _group_in_unit_or_404(db: Session, unit_id: int, group_id: int) -> Group:
     group = db.query(Group).filter(Group.id == group_id, Group.unit_id == unit_id).first()
@@ -106,7 +110,7 @@ def get_groups(unit_id: int, db: Session = Depends(get_db), current_user: User =
     if not membership:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enrolled in this unit")
 
-    query = db.query(Group).filter(
+    query = db.query(Group).options(*GROUP_LOAD_OPTIONS).filter(
         Group.unit_id == unit_id, Group.lifecycle == GROUP_LIFECYCLE_ACTIVE
     )
     if membership.role not in UNIT_STAFF_ROLES:
@@ -129,6 +133,7 @@ def get_joinable_groups(unit_id: int, db: Session = Depends(get_db), current_use
     own_group_ids = {g.id for g in current_user.groups if g.unit_id == unit_id}
     groups = (
         db.query(Group)
+        .options(*GROUP_LOAD_OPTIONS)
         .filter(
             Group.unit_id == unit_id,
             Group.is_public == True,
