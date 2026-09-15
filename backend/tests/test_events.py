@@ -5,8 +5,10 @@ from src.constants import (
     GROUP_EVENT_MEMBER_REMOVED,
     UNIT_EVENT_MEMBER_JOINED,
     UNIT_EVENT_MEMBER_LEFT,
+    UNIT_EVENT_OWNERSHIP_TRANSFERRED,
     UNIT_EVENT_ROLE_CHANGED,
     UNIT_ROLE_ADMINISTRATOR,
+    UNIT_ROLE_STUDENT,
 )
 from tests.conftest import (
     TEST_UNIT_NAME,
@@ -75,6 +77,26 @@ def test_role_change_records_the_transition(client, auth_headers, create_unit, e
     assert change["detail"] == {"from": "student", "to": UNIT_ROLE_ADMINISTRATOR}
     assert change["subject_user_id"] == promoted_id
     assert change["subject_name"] is not None
+
+def test_unit_events_record_an_ownership_transfer(client, auth_headers, create_unit, enrol_user):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME)
+
+    successor_email = "successor@test.com"
+    successor_headers = enrol_user(unit["code"], email=successor_email)
+    successor_id = _member_id(client, owner_headers, unit["id"], successor_email)
+    owner_id = _member_id(client, owner_headers, unit["id"], TEST_USER_EMAIL)
+
+    response = client.put(f"/units/{unit['id']}/owner", headers=owner_headers, json={"user_id": successor_id})
+    assert response.status_code == 200, response.text
+
+    # The new owner reads the log, the previous one is still staff and could too
+    events = _events(client, successor_headers, f"/events/{unit['id']}")
+    transfer = next(e for e in events if e["event_type"] == UNIT_EVENT_OWNERSHIP_TRANSFERRED)
+
+    assert transfer["actor_user_id"] == owner_id
+    assert transfer["subject_user_id"] == successor_id
+    assert transfer["detail"] == {"previous_role": UNIT_ROLE_STUDENT}
 
 def test_user_events_cover_both_acting_and_being_acted_on(client, auth_headers, create_unit, enrol_user, create_group, join_group):
     owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)

@@ -8,7 +8,9 @@ from src.constants import (
     TIME_SLOT_ORDER,
     UNIT_EVENT_MEMBER_JOINED,
     UNIT_EVENT_MEMBER_LEFT,
+    UNIT_EVENT_OWNERSHIP_TRANSFERRED,
     UNIT_EVENT_ROLE_CHANGED,
+    UNIT_ROLE_ADMINISTRATOR,
     UNIT_ROLE_OWNER,
     UNIT_ROLE_STUDENT,
 )
@@ -20,6 +22,7 @@ from src.schemas.unit import (
     FormationWindowUpdate,
     UnitCreate,
     UnitJoin,
+    UnitOwnerTransfer,
     UnitResponse,
     UnitRoleUpdate,
     UnitMembershipResponse,
@@ -94,10 +97,15 @@ def join_unit(body: UnitJoin, db: Session = Depends(get_db), current_user: User 
 
 @router.delete("/{unit_id}/leave", response_model=None, status_code=status.HTTP_204_NO_CONTENT)
 def leave_unit(unit_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    '''Attempts to remove the logged in user from the given unit'''
+    '''Attempts to remove the logged in user from the given unit
+
+    Unit owners cannot leave units. They must trasnfer their ownership of the unit to another unit first.'''
     membership = db.query(UnitMembership).filter_by(user_id=current_user.id, unit_id=unit_id).first()
     if not membership:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not enrolled in unit")
+
+    if membership.role == UNIT_ROLE_OWNER:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="The unit owner cannot leave the unit")
 
     if any(g.unit_id == unit_id for g in current_user.groups):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Leave your group in this unit first")
@@ -239,6 +247,34 @@ def set_member_role(unit_id: int, user_id: int, body: UnitRoleUpdate, db: Sessio
     db.commit()
     db.refresh(membership)
     return membership
+
+@router.put("/{unit_id}/owner", response_model=UnitMembershipResponse)
+def transfer_unit_ownership(unit_id: int, body: UnitOwnerTransfer, db: Session = Depends(get_db), owner: UnitMembership = Depends(require_unit_owner)):
+    '''Changes ownership of the unit to another user also in the unit.
+
+    The caller is demoted to administrator. Only usable by the current owner.'''
+    if body.user_id == owner.user_id:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="You already own this unit")
+
+    target = db.query(UnitMembership).filter_by(user_id=body.user_id, unit_id=unit_id).first()
+    if not target:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User is not enrolled in this unit")
+
+    previous_role = target.role
+    target.role = UNIT_ROLE_OWNER
+    owner.role = UNIT_ROLE_ADMINISTRATOR
+
+    record(
+        db,
+        unit_id,
+        UNIT_EVENT_OWNERSHIP_TRANSFERRED,
+        actor_user_id=owner.user_id,
+        subject_user_id=body.user_id,
+        detail={"previous_role": previous_role},
+    )
+    db.commit()
+    db.refresh(target)
+    return target
 
 @router.get("/{unit_id}/student_count")
 def get_student_count(unit_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
