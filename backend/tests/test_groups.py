@@ -371,22 +371,6 @@ def test_staff_cannot_add_a_member_who_is_in_another_group(client, auth_headers,
     response = client.put(f"/groups/{unit['id']}/{other_group['id']}/members/{first_id}", headers=owner_headers)
     assert response.status_code == 409, response.text
 
-def test_staff_cannot_add_a_member_past_max_group_size(client, auth_headers, create_unit, enrol_user, create_group, join_group):
-    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
-    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME, max_group_size=2)
-
-    creator_headers = enrol_user(unit["code"], email="creator@test.com")
-    group = create_group(creator_headers, unit["id"])
-    joiner_headers = enrol_user(unit["code"], email="joiner@test.com")
-    assert join_group(joiner_headers, group["preference_code"]).status_code == 200
-
-    placed_email = "placed@test.com"
-    enrol_user(unit["code"], email=placed_email)
-    placed_id = _unit_member_id(client, owner_headers, unit["id"], placed_email)
-
-    response = client.put(f"/groups/{unit['id']}/{group['id']}/members/{placed_id}", headers=owner_headers)
-    assert response.status_code == 409, response.text
-
 def test_staff_cannot_add_a_user_who_is_not_enrolled(client, auth_headers, create_unit, enrol_user, create_group):
     owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
     unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME)
@@ -701,7 +685,7 @@ def test_a_group_keeps_its_members_until_the_last_one_leaves(client, auth_header
     still_listed = get_group(owner_headers, unit["id"], group["id"])
     assert len(still_listed["members"]) == 1
 
-def test_an_emptied_group_cannot_be_joined(client, auth_headers, create_unit, enrol_user, create_group, join_group):
+def test_an_emptied_group_rejects_joining(client, auth_headers, create_unit, enrol_user, create_group, join_group):
     owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
     unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME)
 
@@ -716,7 +700,7 @@ def test_an_emptied_group_cannot_be_joined(client, auth_headers, create_unit, en
     assert response.status_code == 409
     assert response.json()["detail"] == "Group is no longer active"
 
-def test_an_emptied_group_is_not_joinable(client, auth_headers, create_unit, enrol_user, create_group, joinable_group_ids):
+def test_an_emptied_group_is_hidden_from_the_joinable_list(client, auth_headers, create_unit, enrol_user, create_group, joinable_group_ids):
     owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
     unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME)
 

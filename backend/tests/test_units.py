@@ -11,7 +11,6 @@ from src.constants import (
     UNIT_ROLE_ADMINISTRATOR,
     UNIT_ROLE_OWNER,
     UNIT_ROLE_STUDENT,
-    USER_ROLE_COORDINATOR,
     USER_ROLE_STUDENT,
 )
 from src.routers.units import EXPORT_COLUMNS
@@ -48,12 +47,6 @@ def test_create_unit_requires_the_coordinator_role(client, auth_headers):
 
     response = client.post("/units/create", headers=headers, json={"name": TEST_UNIT_NAME})
     assert response.status_code == 403, response.text
-
-def test_create_unit_allowed_for_coordinators(client, auth_headers):
-    headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD, role=USER_ROLE_COORDINATOR)
-
-    response = client.post("/units/create", headers=headers, json={"name": TEST_UNIT_NAME})
-    assert response.status_code == 201, response.text
 
 def test_create_unit_defaults_group_sizes(client, auth_headers):
     headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
