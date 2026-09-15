@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from src.constants import GROUP_EVENT_MEMBER_ADDED
+from src.constants import GROUP_EVENT_MEMBER_ADDED, GROUP_EVENT_STATUS_CHANGED
 from src.services.requirements import COMMON_TIME_SLOT, MAX_GROUP_SIZE, MAX_NEW_STUDENTS, MIN_GROUP_SIZE
 from src.services.timestamps import utc_now
 from tests.conftest import (
@@ -532,6 +532,123 @@ def test_override_on_a_group_with_room_does_not_mark_it_overridden(client, auth_
     events = client.get(f"/events/{unit['id']}/group/{group['id']}", headers=owner_headers).json()
     added = next(e for e in events if e["event_type"] == GROUP_EVENT_MEMBER_ADDED)
     assert added["detail"] is None
+
+def _override_path(unit, group):
+    return f"/groups/{unit['id']}/{group['id']}/requirements-override"
+
+def test_staff_can_override_requirements_without_touching_members(client, auth_headers, create_unit, enrol_user, create_group, get_group):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME, min_group_size=3)
+
+    creator_headers = enrol_user(unit["code"], email="creator@test.com")
+    group = create_group(creator_headers, unit["id"])
+
+    before = get_group(owner_headers, unit["id"], group["id"])
+    assert before["status"] == "provisional"
+    assert MIN_GROUP_SIZE in before["unmet_requirements"]
+
+    response = client.put(_override_path(unit, group), headers=owner_headers)
+    assert response.status_code == 200, response.text
+
+    body = response.json()
+    assert body["requirements_overridden"] is True
+    assert body["status"] == "pending"
+    # The group still fails the rule, and still says so
+    assert MIN_GROUP_SIZE in body["unmet_requirements"]
+    assert [m["id"] for m in body["members"]] == [m["id"] for m in before["members"]]
+
+def test_staff_can_clear_the_override(client, auth_headers, create_unit, enrol_user, create_group, join_group, get_group):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME, max_group_size=2)
+    group = _over_capacity_group(client, owner_headers, unit, enrol_user, create_group, join_group)
+
+    assert get_group(owner_headers, unit["id"], group["id"])["status"] == "pending"
+
+    response = client.delete(_override_path(unit, group), headers=owner_headers)
+    assert response.status_code == 200, response.text
+
+    body = response.json()
+    assert body["requirements_overridden"] is False
+    # Membership is untouched, so the group is over capacity again
+    assert body["status"] == "provisional"
+    assert MAX_GROUP_SIZE in body["unmet_requirements"]
+    assert len(body["members"]) == 3
+
+def test_overriding_a_compliant_group_leaves_it_pending(client, auth_headers, create_unit, enrol_user, create_group, join_group, set_time_preferences, get_group):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME, min_group_size=1)
+
+    creator_headers = enrol_user(unit["code"], email="creator@test.com")
+    set_time_preferences(creator_headers, unit["id"], SHARED_SLOTS)
+    group = create_group(creator_headers, unit["id"])
+
+    response = client.put(_override_path(unit, group), headers=owner_headers)
+    assert response.status_code == 200, response.text
+    assert response.json()["status"] == "pending"
+
+    response = client.delete(_override_path(unit, group), headers=owner_headers)
+    assert response.status_code == 200, response.text
+    assert response.json()["status"] == "pending"
+
+def test_setting_and_clearing_the_override_are_idempotent(client, auth_headers, create_unit, enrol_user, create_group):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME, min_group_size=3)
+
+    creator_headers = enrol_user(unit["code"], email="creator@test.com")
+    group = create_group(creator_headers, unit["id"])
+    path = _override_path(unit, group)
+
+    assert client.put(path, headers=owner_headers).status_code == 200
+    assert client.put(path, headers=owner_headers).status_code == 200
+    assert client.delete(path, headers=owner_headers).status_code == 200
+    assert client.delete(path, headers=owner_headers).status_code == 200
+
+    events = client.get(f"/events/{unit['id']}/group/{group['id']}", headers=owner_headers).json()
+    changes = [e for e in events if e["event_type"] == GROUP_EVENT_STATUS_CHANGED]
+    assert len(changes) == 2, "repeat calls should record nothing"
+
+def test_the_override_change_is_recorded(client, auth_headers, create_unit, enrol_user, create_group):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME, min_group_size=3)
+
+    creator_headers = enrol_user(unit["code"], email="creator@test.com")
+    group = create_group(creator_headers, unit["id"])
+    owner_id = _unit_member_id(client, owner_headers, unit["id"], TEST_USER_EMAIL)
+
+    assert client.put(_override_path(unit, group), headers=owner_headers).status_code == 200
+
+    events = client.get(f"/events/{unit['id']}/group/{group['id']}", headers=owner_headers).json()
+    change = next(e for e in events if e["event_type"] == GROUP_EVENT_STATUS_CHANGED)
+
+    assert change["actor_user_id"] == owner_id
+    assert change["detail"]["requirements_overridden"] is True
+    assert MIN_GROUP_SIZE in change["detail"]["unmet_requirements"]
+
+def test_the_override_endpoints_are_staff_only(client, auth_headers, create_unit, enrol_user, create_group):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME)
+
+    creator_headers = enrol_user(unit["code"], email="creator@test.com")
+    group = create_group(creator_headers, unit["id"])
+    path = _override_path(unit, group)
+
+    assert client.put(path, headers=creator_headers).status_code == 403
+    assert client.delete(path, headers=creator_headers).status_code == 403
+
+def test_a_dissolved_group_cannot_be_overridden(client, auth_headers, create_unit, enrol_user, create_group):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME)
+
+    creator_email = "creator@test.com"
+    creator_headers = enrol_user(unit["code"], email=creator_email)
+    group = create_group(creator_headers, unit["id"])
+    creator_id = _unit_member_id(client, owner_headers, unit["id"], creator_email)
+
+    remove = f"/groups/{unit['id']}/{group['id']}/members/{creator_id}"
+    assert client.delete(remove, headers=owner_headers).status_code == 204
+
+    response = client.put(_override_path(unit, group), headers=owner_headers)
+    assert response.status_code == 409, response.text
 
 def _listed_group_ids(client, headers, unit_id):
     response = client.get(f"/groups/{unit_id}", headers=headers)

@@ -3,6 +3,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session, selectinload
 from src.constants import (
     GROUP_EVENT_CREATED,
+    GROUP_EVENT_STATUS_CHANGED,
     GROUP_LIFECYCLE_ACTIVE,
     UNIT_STAFF_ROLES,
 )
@@ -28,6 +29,29 @@ def _group_in_unit_or_404(db: Session, unit_id: int, group_id: int) -> Group:
     group = db.query(Group).filter(Group.id == group_id, Group.unit_id == unit_id).first()
     if group is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
+    return group
+
+def _set_requirements_override(db: Session, unit_id: int, group_id: int, overridden: bool, actor_user_id: int) -> Group:
+    group = _group_in_unit_or_404(db, unit_id, group_id)
+
+    if group.lifecycle != GROUP_LIFECYCLE_ACTIVE or not group.members:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Group is no longer active")
+
+    if group.requirements_overridden == overridden:
+        return group
+
+    group.requirements_overridden = overridden
+    record(
+        db,
+        unit_id,
+        GROUP_EVENT_STATUS_CHANGED,
+        actor_user_id=actor_user_id,
+        group=group,
+        # The codes at the moment of the decision, so the log shows what was excused
+        detail={"requirements_overridden": overridden, "unmet_requirements": group.unmet_requirements},
+    )
+    db.commit()
+    db.refresh(group)
     return group
 
 @router.post("/join", response_model=GroupJoinResponse)
@@ -197,6 +221,20 @@ def add_group_member(unit_id: int, group_id: int, user_id: int, override_max_siz
         detail={"override_max_size": True} if exceeded_max_size else None,
     )
     db.commit()
+
+@router.put("/{unit_id}/{group_id}/requirements-override", response_model=GroupResponse)
+def override_group_requirements(unit_id: int, group_id: int, db: Session = Depends(get_db), _staff: UnitMembership = Depends(require_unit_staff)):
+    '''Suspends requirement grading for the given group
+
+    Owners and administrators only.'''
+    return _set_requirements_override(db, unit_id, group_id, True, _staff.user_id)
+
+@router.delete("/{unit_id}/{group_id}/requirements-override", response_model=GroupResponse)
+def clear_group_requirements_override(unit_id: int, group_id: int, db: Session = Depends(get_db), _staff: UnitMembership = Depends(require_unit_staff)):
+    '''Puts the given group back under normal requirement grading
+
+    Owners and administrators only.'''
+    return _set_requirements_override(db, unit_id, group_id, False, _staff.user_id)
 
 @router.delete("/{unit_id}/{group_id}/members/{user_id}", response_model=None, status_code=status.HTTP_204_NO_CONTENT)
 def remove_group_member(unit_id: int, group_id: int, user_id: int, db: Session = Depends(get_db), _staff: UnitMembership = Depends(require_unit_staff)):
