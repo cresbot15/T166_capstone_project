@@ -8,6 +8,9 @@ from src.constants import (
     MIN_MAX_GROUP_SIZE,
     MIN_MIN_GROUP_SIZE,
     TIME_SLOT_ORDER,
+    UNIT_ROLE_ADMINISTRATOR,
+    UNIT_ROLE_OWNER,
+    UNIT_ROLE_STUDENT,
     USER_ROLE_COORDINATOR,
     USER_ROLE_STUDENT,
 )
@@ -279,6 +282,102 @@ def test_administrator_can_leave_a_unit(client, auth_headers, create_unit, enrol
 
     response = client.delete(f"/units/{unit['id']}/leave", headers=admin_headers)
     assert response.status_code == 204, response.text
+
+def _member_id(client, headers, unit_id, email):
+    response = client.get(f"/units/{unit_id}/members", headers=headers)
+    assert response.status_code == 200, response.text
+    return next(m["user_id"] for m in response.json() if m["email"] == email)
+
+def _unit_role(client, headers, unit_id):
+    response = client.get(f"/units/{unit_id}/me", headers=headers)
+    assert response.status_code == 200, response.text
+    return response.json()["role"]
+
+def test_transfer_ownership_swaps_the_two_roles(client, auth_headers, create_unit, enrol_user):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME)
+
+    successor_email = "successor@test.com"
+    successor_headers = enrol_user(unit["code"], email=successor_email)
+    successor_id = _member_id(client, owner_headers, unit["id"], successor_email)
+
+    response = client.put(f"/units/{unit['id']}/owner", headers=owner_headers, json={"user_id": successor_id})
+    assert response.status_code == 200, response.text
+    assert response.json()["role"] == UNIT_ROLE_OWNER
+    assert response.json()["user_id"] == successor_id
+
+    assert _unit_role(client, successor_headers, unit["id"]) == UNIT_ROLE_OWNER
+    assert _unit_role(client, owner_headers, unit["id"]) == UNIT_ROLE_ADMINISTRATOR
+
+def test_transfer_ownership_moves_role_management(client, auth_headers, create_unit, enrol_user):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME)
+
+    successor_email = "successor@test.com"
+    successor_headers = enrol_user(unit["code"], email=successor_email)
+    successor_id = _member_id(client, owner_headers, unit["id"], successor_email)
+    student_email = "student@test.com"
+    enrol_user(unit["code"], email=student_email)
+    student_id = _member_id(client, owner_headers, unit["id"], student_email)
+
+    assert client.put(f"/units/{unit['id']}/owner", headers=owner_headers, json={"user_id": successor_id}).status_code == 200
+
+    # The new owner can change roles, the previous one no longer can
+    role_change = {"role": UNIT_ROLE_ADMINISTRATOR}
+    assert client.patch(f"/units/{unit['id']}/members/{student_id}", headers=successor_headers, json=role_change).status_code == 200
+    assert client.patch(f"/units/{unit['id']}/members/{student_id}", headers=owner_headers, json={"role": UNIT_ROLE_STUDENT}).status_code == 403
+
+def test_transfer_ownership_lets_the_previous_owner_leave(client, auth_headers, create_unit, enrol_user):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME)
+
+    successor_email = "successor@test.com"
+    enrol_user(unit["code"], email=successor_email)
+    successor_id = _member_id(client, owner_headers, unit["id"], successor_email)
+
+    assert client.delete(f"/units/{unit['id']}/leave", headers=owner_headers).status_code == 409
+    assert client.put(f"/units/{unit['id']}/owner", headers=owner_headers, json={"user_id": successor_id}).status_code == 200
+
+    response = client.delete(f"/units/{unit['id']}/leave", headers=owner_headers)
+    assert response.status_code == 204, response.text
+
+def test_transfer_ownership_is_owner_only(client, auth_headers, create_unit, enrol_user):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME)
+
+    admin_email = "admin@test.com"
+    admin_headers = enrol_user(unit["code"], email=admin_email)
+    admin_id = _member_id(client, owner_headers, unit["id"], admin_email)
+    assert client.patch(
+        f"/units/{unit['id']}/members/{admin_id}",
+        headers=owner_headers,
+        json={"role": UNIT_ROLE_ADMINISTRATOR},
+    ).status_code == 200
+
+    student_headers = enrol_user(unit["code"], email="student@test.com")
+
+    assert client.put(f"/units/{unit['id']}/owner", headers=admin_headers, json={"user_id": admin_id}).status_code == 403
+    assert client.put(f"/units/{unit['id']}/owner", headers=student_headers, json={"user_id": admin_id}).status_code == 403
+
+def test_transfer_ownership_rejects_a_user_who_is_not_enrolled(client, auth_headers, create_unit):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME)
+
+    outsider_headers = auth_headers(email="outsider@test.com", password=TEST_USER_PASSWORD)
+    other_unit = create_unit(headers=outsider_headers, name="other_unit")
+    outsider_id = _member_id(client, outsider_headers, other_unit["id"], "outsider@test.com")
+
+    response = client.put(f"/units/{unit['id']}/owner", headers=owner_headers, json={"user_id": outsider_id})
+    assert response.status_code == 404, response.text
+
+def test_transfer_ownership_rejects_the_current_owner(client, auth_headers, create_unit):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME)
+    owner_id = _member_id(client, owner_headers, unit["id"], TEST_USER_EMAIL)
+
+    response = client.put(f"/units/{unit['id']}/owner", headers=owner_headers, json={"user_id": owner_id})
+    assert response.status_code == 409, response.text
+    assert _unit_role(client, owner_headers, unit["id"]) == UNIT_ROLE_OWNER
 
 def test_create_unit_codes_are_unique(client, auth_headers, create_unit):
     headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)

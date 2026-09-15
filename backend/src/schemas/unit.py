@@ -61,6 +61,9 @@ class UnitResponse(BaseModel):
 class UnitRoleUpdate(BaseModel):
     role: Literal["administrator", "student"]
 
+class UnitOwnerTransfer(BaseModel):
+    user_id: int
+
 class UnitMembershipResponse(BaseModel):
     model_config = {"from_attributes": True}
 
