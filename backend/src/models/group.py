@@ -1,9 +1,13 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, ForeignKey, String
 from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from src.constants import GROUP_LIFECYCLE_ACTIVE, GROUP_LIFECYCLES
+from src.constants import (
+    GROUP_LIFECYCLE_ACTIVE,
+    GROUP_LIFECYCLES,
+    GROUP_STATUS_PENDING,
+    GROUP_STATUS_PROVISIONAL,
+)
 from src.database import Base
 from src.services.availability import common_time_slots
 from src.services.requirements import evaluate_group
@@ -49,4 +53,4 @@ class Group(Base):
 
     @property
     def status(self) -> str:
-        return "provisional" if self.unmet_requirements else "pending"
+        return GROUP_STATUS_PROVISIONAL if self.unmet_requirements else GROUP_STATUS_PENDING

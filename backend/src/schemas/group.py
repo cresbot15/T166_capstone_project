@@ -1,4 +1,5 @@
 from pydantic import BaseModel, field_validator
+from src.constants import GROUP_STATUS_PROVISIONAL
 from src.schemas.types import UtcDatetime
 from src.schemas.user import UserResponse
 
@@ -20,7 +21,7 @@ class GroupResponse(BaseModel):
     creator_user_id: int | None = None
     is_public: bool = False
     members: list[UserResponse] = []
-    status: str = "provisional"
+    status: str = GROUP_STATUS_PROVISIONAL
     unmet_requirements: list[str] = []
     common_time_slots: list[str] = []
     created_at: UtcDatetime

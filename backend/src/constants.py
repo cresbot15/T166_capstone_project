@@ -3,6 +3,7 @@ USER_ROLE_STUDENT = "student"
 USER_ROLE_COORDINATOR = "unit_coordinator"
 USER_ROLES: tuple[str, ...] = (USER_ROLE_STUDENT, USER_ROLE_COORDINATOR)
 
+# Unit roles
 UNIT_ROLE_OWNER = "owner"
 UNIT_ROLE_ADMINISTRATOR = "administrator"
 UNIT_ROLE_STUDENT = "student"
@@ -14,9 +15,15 @@ FORMATION_NOT_OPEN = "not_open"
 FORMATION_OPEN = "open"
 FORMATION_CLOSED = "closed"
 
+# Group lifecycles
 GROUP_LIFECYCLE_ACTIVE = "active"
 GROUP_LIFECYCLE_DISSOLVED = "dissolved"
 GROUP_LIFECYCLES: tuple[str, ...] = (GROUP_LIFECYCLE_ACTIVE, GROUP_LIFECYCLE_DISSOLVED)
+
+# Group statuses
+GROUP_STATUS_PENDING = "pending"
+GROUP_STATUS_PROVISIONAL = "provisional"
+GROUP_STATUSES: tuple[str, ...] = (GROUP_STATUS_PENDING, GROUP_STATUS_PROVISIONAL)
 
 # Audit log events
 UNIT_EVENT_MEMBER_JOINED = "unit.member_joined"
