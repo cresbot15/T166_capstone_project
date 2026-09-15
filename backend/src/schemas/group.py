@@ -23,6 +23,7 @@ class GroupResponse(BaseModel):
     members: list[UserResponse] = []
     status: str = GROUP_STATUS_PROVISIONAL
     unmet_requirements: list[str] = []
+    requirements_overridden: bool = False
     common_time_slots: list[str] = []
     created_at: UtcDatetime
 

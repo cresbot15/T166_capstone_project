@@ -36,6 +36,9 @@ class Group(Base):
     lifecycle: Mapped[str] = mapped_column(
         Enum(*GROUP_LIFECYCLES, name="group_lifecycle"), default=GROUP_LIFECYCLE_ACTIVE
     )
+    # Set when staff place a member past the unit's maximum group size. Grading is
+    # suspended for the group from then on; unmet_requirements still reports the truth
+    requirements_overridden: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     unit = relationship("Unit", back_populates="groups")
@@ -53,4 +56,6 @@ class Group(Base):
 
     @property
     def status(self) -> str:
+        if self.requirements_overridden:
+            return GROUP_STATUS_PENDING
         return GROUP_STATUS_PROVISIONAL if self.unmet_requirements else GROUP_STATUS_PENDING

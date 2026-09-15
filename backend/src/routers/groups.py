@@ -186,6 +186,9 @@ def add_group_member(unit_id: int, group_id: int, user_id: int, override_max_siz
     exceeded_max_size = override_max_size and is_full(group)
     ensure_can_join(group, user, override_max_size=override_max_size)
 
+    if exceeded_max_size:
+        group.requirements_overridden = True
+
     add_member(
         db,
         group,

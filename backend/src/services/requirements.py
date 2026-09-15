@@ -5,6 +5,7 @@ if TYPE_CHECKING:
     from src.models.unit import Unit
 
 MIN_GROUP_SIZE = "min_group_size"
+MAX_GROUP_SIZE = "max_group_size"
 COMMON_TIME_SLOT = "common_time_slot"
 MAX_NEW_STUDENTS = "max_new_students"
 
@@ -23,6 +24,11 @@ def evaluate_group(group: "Group", unit: "Unit") -> list[str]:
 
     if len(group.members) < unit.min_group_size:
         unmet.append(MIN_GROUP_SIZE)
+
+    # Usually not reachable, only important when a staff member inserts members beyond
+    # the unit max group size
+    if len(group.members) > unit.max_group_size:
+        unmet.append(MAX_GROUP_SIZE)
 
     if not group.common_time_slots:
         unmet.append(COMMON_TIME_SLOT)
