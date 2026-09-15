@@ -236,6 +236,50 @@ def test_join_unit_rejects_an_incorrect_code(client, auth_headers, create_unit):
     response = client.post("/units/join", headers=student_headers, json={"code": "notarealcode"})
     assert response.status_code == 404, response.text
 
+def test_owner_cannot_leave_their_unit(client, auth_headers, create_unit):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME)
+
+    response = client.delete(f"/units/{unit['id']}/leave", headers=owner_headers)
+    assert response.status_code == 409, response.text
+
+    response = client.get(f"/units/{unit['id']}/me", headers=owner_headers)
+    assert response.status_code == 200, response.text
+    assert response.json()["role"] == "owner"
+
+def test_student_can_leave_a_unit(client, auth_headers, create_unit, enrol_user):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME)
+
+    student_headers = enrol_user(unit["code"], email="student@test.com")
+
+    response = client.delete(f"/units/{unit['id']}/leave", headers=student_headers)
+    assert response.status_code == 204, response.text
+
+    response = client.get(f"/units/{unit['id']}/me", headers=student_headers)
+    assert response.status_code == 404, response.text
+
+def test_administrator_can_leave_a_unit(client, auth_headers, create_unit, enrol_user):
+    owner_headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
+    unit = create_unit(headers=owner_headers, name=TEST_UNIT_NAME)
+
+    admin_email = "admin@test.com"
+    admin_headers = enrol_user(unit["code"], email=admin_email)
+
+    response = client.get(f"/units/{unit['id']}/members", headers=owner_headers)
+    assert response.status_code == 200, response.text
+    admin_id = next(m["user_id"] for m in response.json() if m["email"] == admin_email)
+
+    response = client.patch(
+        f"/units/{unit['id']}/members/{admin_id}",
+        headers=owner_headers,
+        json={"role": "administrator"},
+    )
+    assert response.status_code == 200, response.text
+
+    response = client.delete(f"/units/{unit['id']}/leave", headers=admin_headers)
+    assert response.status_code == 204, response.text
+
 def test_create_unit_codes_are_unique(client, auth_headers, create_unit):
     headers = auth_headers(email=TEST_USER_EMAIL, password=TEST_USER_PASSWORD)
 

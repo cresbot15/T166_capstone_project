@@ -79,10 +79,15 @@ def join_unit(body: UnitJoin, db: Session = Depends(get_db), current_user: User 
 
 @router.delete("/{unit_id}/leave", response_model=None, status_code=status.HTTP_204_NO_CONTENT)
 def leave_unit(unit_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    '''Attempts to remove the logged in user from the given unit'''
+    '''Attempts to remove the logged in user from the given unit
+
+    Unit owners cannot leave units.'''
     membership = db.query(UnitMembership).filter_by(user_id=current_user.id, unit_id=unit_id).first()
     if not membership:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not enrolled in unit")
+
+    if membership.role == UNIT_ROLE_OWNER:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="The unit owner cannot leave the unit")
 
     if any(g.unit_id == unit_id for g in current_user.groups):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Leave your group in this unit first")
