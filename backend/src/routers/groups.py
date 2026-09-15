@@ -1,30 +1,57 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from src.constants import (
     GROUP_EVENT_CREATED,
-    GROUP_EVENT_MEMBER_JOINED,
+    GROUP_EVENT_STATUS_CHANGED,
     GROUP_LIFECYCLE_ACTIVE,
     UNIT_STAFF_ROLES,
 )
 from src.database import get_db
-from src.models.group import Group, GroupMembership
+from src.models.group import Group
 from src.models.unit import Unit, UnitMembership
 from src.models.user import User
 from src.schemas.group import GroupJoin, GroupJoinResponse, GroupResponse, GroupCreate
 from src.services.audit import record
 from src.services.availability import common_time_slots
 from src.services.formation import require_formation_open
-from src.services.groups import remove_member
+from src.services.groups import add_member, ensure_can_join, is_full, remove_member
 from src.services.auth import get_current_user, require_unit_staff
 from src.services.codes import generate_preference_code
 
 router = APIRouter()
+GROUP_LOAD_OPTIONS = (
+    selectinload(Group.unit),
+    selectinload(Group.members).selectinload(User.unit_profiles),
+)
 
 def _group_in_unit_or_404(db: Session, unit_id: int, group_id: int) -> Group:
     group = db.query(Group).filter(Group.id == group_id, Group.unit_id == unit_id).first()
     if group is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
+    return group
+
+def _set_requirements_override(db: Session, unit_id: int, group_id: int, overridden: bool, actor_user_id: int) -> Group:
+    group = _group_in_unit_or_404(db, unit_id, group_id)
+
+    if group.lifecycle != GROUP_LIFECYCLE_ACTIVE or not group.members:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Group is no longer active")
+
+    if group.requirements_overridden == overridden:
+        return group
+
+    group.requirements_overridden = overridden
+    record(
+        db,
+        unit_id,
+        GROUP_EVENT_STATUS_CHANGED,
+        actor_user_id=actor_user_id,
+        group=group,
+        # The codes at the moment of the decision, so the log shows what was excused
+        detail={"requirements_overridden": overridden, "unmet_requirements": group.unmet_requirements},
+    )
+    db.commit()
+    db.refresh(group)
     return group
 
 @router.post("/join", response_model=GroupJoinResponse)
@@ -36,22 +63,13 @@ def join_group(body: GroupJoin, db: Session = Depends(get_db), current_user: Use
     if not group:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invalid preference code")
 
-    if any(g.unit_id == group.unit_id for g in current_user.groups):
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User is already in a group for this unit")
-
     if group.unit not in current_user.units:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is not enrolled in this unit")
 
     require_formation_open(group.unit)
+    ensure_can_join(group, current_user)
 
-    if group.lifecycle != GROUP_LIFECYCLE_ACTIVE or not group.members:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Group is no longer active")
-
-    if len(group.members) >= group.unit.max_group_size:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Group is full")
-
-    db.add(GroupMembership(user_id=current_user.id, group_id=group.id))
-    record(db, group.unit_id, GROUP_EVENT_MEMBER_JOINED, actor_user_id=current_user.id, group=group)
+    add_member(db, group, current_user.id, actor_user_id=current_user.id)
     db.commit()
     db.refresh(group)
 
@@ -80,9 +98,8 @@ def create_group(body: GroupCreate, db: Session = Depends(get_db), current_user:
     db.commit()
     db.refresh(group)
 
-    db.add(GroupMembership(user_id=current_user.id, group_id=group.id))
     record(db, unit.id, GROUP_EVENT_CREATED, actor_user_id=current_user.id, group=group)
-    record(db, unit.id, GROUP_EVENT_MEMBER_JOINED, actor_user_id=current_user.id, group=group)
+    add_member(db, group, current_user.id, actor_user_id=current_user.id)
     db.commit()
     db.refresh(group)
 
@@ -106,7 +123,7 @@ def get_groups(unit_id: int, db: Session = Depends(get_db), current_user: User =
     if not membership:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enrolled in this unit")
 
-    query = db.query(Group).filter(
+    query = db.query(Group).options(*GROUP_LOAD_OPTIONS).filter(
         Group.unit_id == unit_id, Group.lifecycle == GROUP_LIFECYCLE_ACTIVE
     )
     if membership.role not in UNIT_STAFF_ROLES:
@@ -129,6 +146,7 @@ def get_joinable_groups(unit_id: int, db: Session = Depends(get_db), current_use
     own_group_ids = {g.id for g in current_user.groups if g.unit_id == unit_id}
     groups = (
         db.query(Group)
+        .options(*GROUP_LOAD_OPTIONS)
         .filter(
             Group.unit_id == unit_id,
             Group.is_public == True,
@@ -168,6 +186,55 @@ def leave_group(unit_id: int, group_id: int, db: Session = Depends(get_db), curr
 
     remove_member(db, group, current_user.id, actor_user_id=current_user.id)
     db.commit()
+
+@router.put("/{unit_id}/{group_id}/members/{user_id}", response_model=None, status_code=status.HTTP_204_NO_CONTENT)
+def add_group_member(unit_id: int, group_id: int, user_id: int, override_max_size: bool = False, db: Session = Depends(get_db), _staff: UnitMembership = Depends(require_unit_staff)):
+    '''Places the given member of the unit into the given group
+
+    Owners and administrators only, not bound by the unit's formation window.
+
+    Pass override_max_size to place a member past the unit's maximum group size.'''
+    group = _group_in_unit_or_404(db, unit_id, group_id)
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    if not db.query(UnitMembership).filter_by(user_id=user_id, unit_id=unit_id).first():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User is not enrolled in this unit")
+
+    # Already in this group, so there is nothing to do and nothing to record
+    if any(m.id == user_id for m in group.members):
+        return
+
+    exceeded_max_size = override_max_size and is_full(group)
+    ensure_can_join(group, user, override_max_size=override_max_size)
+
+    if exceeded_max_size:
+        group.requirements_overridden = True
+
+    add_member(
+        db,
+        group,
+        user_id,
+        actor_user_id=_staff.user_id,
+        detail={"override_max_size": True} if exceeded_max_size else None,
+    )
+    db.commit()
+
+@router.put("/{unit_id}/{group_id}/requirements-override", response_model=GroupResponse)
+def override_group_requirements(unit_id: int, group_id: int, db: Session = Depends(get_db), _staff: UnitMembership = Depends(require_unit_staff)):
+    '''Suspends requirement grading for the given group
+
+    Owners and administrators only.'''
+    return _set_requirements_override(db, unit_id, group_id, True, _staff.user_id)
+
+@router.delete("/{unit_id}/{group_id}/requirements-override", response_model=GroupResponse)
+def clear_group_requirements_override(unit_id: int, group_id: int, db: Session = Depends(get_db), _staff: UnitMembership = Depends(require_unit_staff)):
+    '''Puts the given group back under normal requirement grading
+
+    Owners and administrators only.'''
+    return _set_requirements_override(db, unit_id, group_id, False, _staff.user_id)
 
 @router.delete("/{unit_id}/{group_id}/members/{user_id}", response_model=None, status_code=status.HTTP_204_NO_CONTENT)
 def remove_group_member(unit_id: int, group_id: int, user_id: int, db: Session = Depends(get_db), _staff: UnitMembership = Depends(require_unit_staff)):
