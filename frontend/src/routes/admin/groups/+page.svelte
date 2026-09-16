@@ -82,16 +82,33 @@
 />
 
 <div class="max-w-3xl mx-auto px-4 py-8">
-	<button
-		type="button"
-		class="btn btn-outline btn-sm mb-3"
-		onclick={() => (filtersOpen = !filtersOpen)}
-	>
-		Filters
-		{#if activeFilterCount > 0}<span class="badge badge-secondary badge-sm">{activeFilterCount}</span
-			>{/if}
-		<span class="text-xs">{filtersOpen ? '▲' : '▼'}</span>
-	</button>
+	<div class="flex flex-wrap items-center gap-2 mb-3">
+		<button
+			type="button"
+			class="btn btn-outline btn-sm"
+			onclick={() => (filtersOpen = !filtersOpen)}
+		>
+			Filters
+			{#if activeFilterCount > 0}<span class="badge badge-secondary badge-sm"
+					>{activeFilterCount}</span
+				>{/if}
+			<span class="text-xs">{filtersOpen ? '▲' : '▼'}</span>
+		</button>
+		<button
+			type="button"
+			class="btn btn-sm {statusFilter === 'pending' ? 'btn-success' : 'btn-outline'}"
+			onclick={() => (statusFilter = statusFilter === 'pending' ? 'all' : 'pending')}
+		>
+			All Ready
+		</button>
+		<button
+			type="button"
+			class="btn btn-sm {statusFilter === 'provisional' ? 'btn-warning' : 'btn-outline'}"
+			onclick={() => (statusFilter = statusFilter === 'provisional' ? 'all' : 'provisional')}
+		>
+			All Provisional
+		</button>
+	</div>
 
 	{#if filtersOpen}
 		<div class="card bg-base-100 shadow-sm rounded-2xl mb-4">
