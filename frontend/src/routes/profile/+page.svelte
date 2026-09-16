@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { api, type GroupResponse, type UnitMeResponse } from '$lib/api';
 	import { token, user, activeUnit } from '$lib/stores';
+	import { capitalize } from '$lib/format';
 	import TimeGrid from '$lib/components/TimeGrid.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import SectionCard from '$lib/components/SectionCard.svelte';
@@ -89,6 +90,7 @@
 <PageHeader title={`Welcome, ${$user?.first_name ?? ''}!`} subtitle={$user?.email ?? ''} />
 
 <div class="max-w-3xl mx-auto px-4 py-8">
+	{#if successMsg}<p class="text-success text-sm mb-4">{successMsg}</p>{/if}
 	{#if loading}
 		<span class="loading loading-spinner"></span>
 	{:else if editMode}
@@ -139,7 +141,7 @@
 				<dl class="flex flex-col gap-2 text-sm">
 					<div>
 						<dt class="text-base-content/60">Delivery Mode</dt>
-						<dd>{unitProfile?.delivery_mode ?? '—'}</dd>
+						<dd>{capitalize(unitProfile?.delivery_mode)}</dd>
 					</div>
 					<div>
 						<dt class="text-base-content/60">Skills</dt>
@@ -149,7 +151,6 @@
 			</SectionCard>
 
 			<SectionCard title="Your Team">
-				{#if successMsg}<p class="text-success text-sm mb-2">{successMsg}</p>{/if}
 				{#if myGroup}
 					<p class="text-sm">
 						You're in Group {myGroup.id} with {myGroup.members.length} member{myGroup.members

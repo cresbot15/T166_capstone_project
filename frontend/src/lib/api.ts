@@ -42,6 +42,8 @@ export interface UnitResponse {
 	max_group_size: number;
 	max_new_students: number | null;
 	time_slots: string[];
+	formation_start_date: string | null;
+	formation_end_date: string | null;
 }
 
 export interface UnitMeResponse {
@@ -116,9 +118,27 @@ export const api = {
 
 	getMyUnits: () => req<UnitResponse[]>('GET', '/units/me'),
 	joinUnit: (code: string) => req<UnitResponse>('POST', '/units/join', { code }),
-	createUnit: (name?: string, timeSlots?: string[]) =>
-		req<UnitResponse>('POST', '/units/create', { name, time_slots: timeSlots }),
+	createUnit: (data: {
+		name?: string;
+		timeSlots?: string[];
+		formationStartDate?: string;
+		formationEndDate?: string;
+	}) =>
+		req<UnitResponse>('POST', '/units/create', {
+			name: data.name,
+			time_slots: data.timeSlots,
+			formation_start_date: data.formationStartDate,
+			formation_end_date: data.formationEndDate
+		}),
 	getMyUnitProfile: (unitId: number) => req<UnitMeResponse>('GET', `/units/${unitId}/me`),
+	setFormationWindow: (
+		unitId: number,
+		data: { formationStartDate: string | null; formationEndDate: string | null }
+	) =>
+		req<UnitResponse>('PATCH', `/units/${unitId}/formation`, {
+			formation_start_date: data.formationStartDate,
+			formation_end_date: data.formationEndDate
+		}),
 	updateMyUnitProfile: (
 		unitId: number,
 		data: Partial<{

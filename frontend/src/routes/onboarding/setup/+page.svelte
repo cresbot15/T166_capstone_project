@@ -48,7 +48,7 @@
 	}
 </script>
 
-<div class="min-h-screen flex items-center justify-center px-4 py-10">
+<div class="min-h-[calc(100vh-4rem)] flex items-center justify-center px-4 py-10">
 	<div class="card bg-base-100 shadow-sm rounded-2xl w-full max-w-xl">
 		<div class="card-body">
 			<h1 class="text-2xl font-extrabold text-primary mb-1">Set Up Your Profile</h1>

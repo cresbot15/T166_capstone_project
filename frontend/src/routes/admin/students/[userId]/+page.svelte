@@ -5,6 +5,7 @@
 	import { token, activeUnit } from '$lib/stores';
 	import { api, type UnitEventResponse, type UnitMemberResponse } from '$lib/api';
 	import { eventLabel } from '$lib/auditLog';
+	import { capitalize } from '$lib/format';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import TimeGrid from '$lib/components/TimeGrid.svelte';
 
@@ -75,7 +76,7 @@
 				<p class="text-sm text-base-content/60">{member.email}</p>
 				<div class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm mt-2">
 					<span class="text-base-content/60">Delivery mode</span>
-					<span>{member.delivery_mode ?? '—'}</span>
+					<span>{capitalize(member.delivery_mode)}</span>
 					<span class="text-base-content/60">Skills</span>
 					<span>{member.skills || '—'}</span>
 				</div>

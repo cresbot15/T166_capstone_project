@@ -66,6 +66,16 @@
 		refreshUnitRole($activeUnit?.id ?? null);
 	});
 
+	// Same reasoning as unitRole above: creating or joining a unit sets
+	// activeUnit directly without updating this layout's own myUnits, so the
+	// unit switcher would otherwise keep showing a stale list until a full
+	// reload.
+	$effect(() => {
+		if ($activeUnit && $token) {
+			api.getMyUnits().then((units) => (myUnits = units));
+		}
+	});
+
 	const isUnitStaff = $derived($unitRole === 'owner' || $unitRole === 'administrator');
 </script>
 
@@ -88,27 +98,29 @@
 			>
 				Home
 			</a>
-			<a
-				href="/explore"
-				class="btn btn-ghost btn-sm"
-				class:btn-active={$page.url.pathname === '/explore'}
-			>
-				Explore
-			</a>
-			<a
-				href="/group"
-				class="btn btn-ghost btn-sm"
-				class:btn-active={$page.url.pathname === '/group'}
-			>
-				Group
-			</a>
-			<a
-				href="/profile"
-				class="btn btn-ghost btn-sm"
-				class:btn-active={$page.url.pathname === '/profile'}
-			>
-				Profile
-			</a>
+			{#if !isUnitStaff}
+				<a
+					href="/explore"
+					class="btn btn-ghost btn-sm"
+					class:btn-active={$page.url.pathname === '/explore'}
+				>
+					Explore
+				</a>
+				<a
+					href="/group"
+					class="btn btn-ghost btn-sm"
+					class:btn-active={$page.url.pathname === '/group'}
+				>
+					Group
+				</a>
+				<a
+					href="/profile"
+					class="btn btn-ghost btn-sm"
+					class:btn-active={$page.url.pathname === '/profile'}
+				>
+					Profile
+				</a>
+			{/if}
 			{#if isUnitStaff}
 				<a
 					href="/admin/members"
@@ -130,6 +142,15 @@
 					class:btn-active={$page.url.pathname === '/admin/audit-log'}
 				>
 					Audit Log
+				</a>
+			{/if}
+			{#if $unitRole === 'owner'}
+				<a
+					href="/admin/settings"
+					class="btn btn-ghost btn-sm"
+					class:btn-active={$page.url.pathname === '/admin/settings'}
+				>
+					Unit Settings
 				</a>
 			{/if}
 		</div>

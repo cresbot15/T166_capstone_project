@@ -41,6 +41,7 @@ html {
 }
 
 body {
+	min-height: 100vh;
 	background-color: var(--color-base-200);
 }
 
@@ -62,4 +63,11 @@ h2 {
 .checkbox,
 .radio {
 	--input-color: var(--color-base-content);
+}
+
+/* The rule above sets every checkbox/radio's resting border AND checked fill
+   from the same variable, which silently cancels out any checkbox-success/
+   -warning/etc modifier. Restore them explicitly, in cascade order after it. */
+.checkbox-success {
+	--input-color: var(--color-success);
 }

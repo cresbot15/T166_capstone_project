@@ -3,6 +3,8 @@
 	import { goto } from '$app/navigation';
 	import { token, activeUnit } from '$lib/stores';
 	import { api, type GroupResponse, type UnitMemberResponse } from '$lib/api';
+	import { clickOutside } from '$lib/clickOutside';
+	import { capitalize } from '$lib/format';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 
 	let view = $state<'students' | 'groups'>('students');
@@ -22,6 +24,13 @@
 	let openSlotsOnly = $state(false);
 	let matchesMyAvailability = $state(false);
 
+	let studentFiltersOpen = $state(false);
+	let groupStatusDropdownOpen = $state(false);
+	let showReady = $state(true);
+	let showProvisional = $state(true);
+	let showNoGroup = $state(true);
+	const groupStatusFilterActive = $derived(!(showReady && showProvisional && showNoGroup));
+
 	// Each active filter contributes one predicate; a future constraint (e.g. a
 	// composition rule) just adds another entry here rather than reshaping this logic.
 	const groupFilters = $derived(
@@ -40,28 +49,42 @@
 			(openSlotsOnly ? 1 : 0) +
 			(matchesMyAvailability ? 1 : 0)
 	);
-
-	const filteredMembers = $derived(
-		members.filter((m) =>
-			`${m.first_name} ${m.last_name}`.toLowerCase().includes(search.toLowerCase())
-		)
-	);
+	const studentActiveFilterCount = $derived(groupStatusFilterActive ? 1 : 0);
 
 	// Owners/admins see every group for the unit (public and private), so this
 	// cross-reference is complete for anyone who can see the Students panel at all.
-	const groupStatusByUserId = $derived.by(() => {
-		const map = new Map<number, GroupResponse['status']>();
+	const groupInfoByUserId = $derived.by(() => {
+		const map = new Map<number, { id: number; status: GroupResponse['status'] }>();
 		for (const g of groups) {
-			for (const m of g.members) map.set(m.id, g.status);
+			for (const m of g.members) map.set(m.id, { id: g.id, status: g.status });
 		}
 		return map;
 	});
 
+	const filteredMembers = $derived.by(() => {
+		const query = search.toLowerCase().trim();
+		return members.filter((m) => {
+			if (query) {
+				const matchesQuery =
+					`${m.first_name} ${m.last_name}`.toLowerCase().includes(query) ||
+					(m.skills ?? '').toLowerCase().includes(query);
+				if (!matchesQuery) return false;
+			}
+			if (m.role === 'student' && groupStatusFilterActive) {
+				const status = groupInfoByUserId.get(m.user_id)?.status;
+				if (status === 'pending' && !showReady) return false;
+				if (status === 'provisional' && !showProvisional) return false;
+				if (!status && !showNoGroup) return false;
+			}
+			return true;
+		});
+	});
+
 	function membershipLabel(userId: number): { text: string; badgeClass: string } {
-		const status = groupStatusByUserId.get(userId);
-		if (!status) return { text: 'Not in a group', badgeClass: 'badge-ghost' };
-		if (status === 'pending') return { text: 'In a group', badgeClass: 'badge-success' };
-		return { text: 'In a provisional group', badgeClass: 'badge-warning' };
+		const info = groupInfoByUserId.get(userId);
+		if (!info) return { text: 'No group', badgeClass: 'badge-ghost' };
+		if (info.status === 'pending') return { text: `Group ${info.id}`, badgeClass: 'badge-success' };
+		return { text: `Group ${info.id} (provisional)`, badgeClass: 'badge-warning' };
 	}
 
 	const myGroupIdForUnit = $derived(
@@ -151,6 +174,73 @@
 				bind:value={search}
 			/>
 
+			<button
+				type="button"
+				class="btn btn-outline btn-sm mb-3"
+				onclick={() => (studentFiltersOpen = !studentFiltersOpen)}
+			>
+				Filters
+				{#if studentActiveFilterCount > 0}<span class="badge badge-secondary badge-sm"
+						>{studentActiveFilterCount}</span
+					>{/if}
+				<span class="text-xs">{studentFiltersOpen ? '▲' : '▼'}</span>
+			</button>
+
+			{#if studentFiltersOpen}
+				<div class="card bg-base-100 shadow-sm rounded-2xl mb-4">
+					<div class="card-body gap-3">
+						<div class="flex flex-col gap-1">
+							<span class="text-sm font-medium">Group status</span>
+							<div
+								class="dropdown"
+								class:dropdown-open={groupStatusDropdownOpen}
+								use:clickOutside={() => (groupStatusDropdownOpen = false)}
+							>
+								<button
+									type="button"
+									class="btn btn-outline btn-sm justify-between w-56"
+									onclick={() => (groupStatusDropdownOpen = !groupStatusDropdownOpen)}
+								>
+									Group status
+									{#if groupStatusFilterActive}<span class="badge badge-secondary badge-sm"
+											>on</span
+										>{/if}
+									<span class="text-xs">▾</span>
+								</button>
+								<div
+									class="dropdown-content menu bg-base-100 rounded-box shadow-sm z-10 w-56 p-3 gap-1"
+								>
+									<label class="flex items-center gap-2 py-1">
+										<input
+											type="checkbox"
+											class="checkbox checkbox-sm checkbox-success border-2 border-secondary"
+											bind:checked={showReady}
+										/>
+										<span class="text-sm">Ready</span>
+									</label>
+									<label class="flex items-center gap-2 py-1">
+										<input
+											type="checkbox"
+											class="checkbox checkbox-sm checkbox-success border-2 border-secondary"
+											bind:checked={showProvisional}
+										/>
+										<span class="text-sm">Provisional</span>
+									</label>
+									<label class="flex items-center gap-2 py-1">
+										<input
+											type="checkbox"
+											class="checkbox checkbox-sm checkbox-success border-2 border-secondary"
+											bind:checked={showNoGroup}
+										/>
+										<span class="text-sm">No group</span>
+									</label>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			{/if}
+
 			{#if membersError}<p class="text-error text-sm mb-2">{membersError}</p>{/if}
 
 			<div class="flex flex-col gap-3">
@@ -161,7 +251,7 @@
 							<div class="min-w-0 flex-1">
 								<p class="font-bold">{member.first_name} {member.last_name}</p>
 								<p class="text-sm text-base-content/60">
-									Delivery: {member.delivery_mode ?? '—'}
+									Delivery: {capitalize(member.delivery_mode)}
 								</p>
 								<p class="text-sm text-base-content/60 break-words">
 									Skills: {member.skills || '—'}
@@ -179,6 +269,8 @@
 				{/each}
 				{#if members.length === 0}
 					<p class="text-sm text-base-content/60">No members in this unit yet.</p>
+				{:else if filteredMembers.length === 0}
+					<p class="text-sm text-base-content/60">No students match the selected filters.</p>
 				{/if}
 			</div>
 		</div>

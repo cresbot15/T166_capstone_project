@@ -4,17 +4,24 @@
 	import { api } from '$lib/api';
 	import { token, user } from '$lib/stores';
 
+	let step = $state<'role' | 'form'>('role');
+	let role = $state<'student' | 'unit_coordinator'>('student');
+
 	let firstName = $state('');
 	let lastName = $state('');
 	let email = $state('');
 	let password = $state('');
-	let role = $state<'student' | 'unit_coordinator'>('student');
 	let error = $state('');
 	let loading = $state(false);
 
 	onMount(() => {
 		if ($token) goto('/home');
 	});
+
+	function chooseRole(chosen: 'student' | 'unit_coordinator') {
+		role = chosen;
+		step = 'form';
+	}
 
 	async function handleSubmit(e: SubmitEvent) {
 		e.preventDefault();
@@ -37,54 +44,72 @@
 <div class="min-h-screen flex items-center justify-center px-4">
 	<div class="card bg-base-100 shadow-sm rounded-2xl w-full max-w-md">
 		<div class="card-body">
-			<h1 class="text-2xl font-extrabold text-primary mb-1">Register an Account</h1>
-			<p class="text-sm text-base-content/60 mb-4">
-				Please fill out the following form to register with TeamUp.
-			</p>
-			<form onsubmit={handleSubmit} class="flex flex-col gap-3">
-				<div role="tablist" class="tabs tabs-boxed mb-1">
+			{#if step === 'role'}
+				<h1 class="text-2xl font-extrabold text-primary mb-1">Register an Account</h1>
+				<p class="text-sm text-base-content/60 mb-4">
+					Are you registering as a student, or as a member of teaching staff?
+				</p>
+				<div class="flex flex-col gap-3">
 					<button
 						type="button"
-						role="tab"
-						class="tab {role === 'student' ? 'tab-active' : ''}"
-						onclick={() => (role = 'student')}
+						class="btn btn-outline btn-block h-auto py-4 flex-col items-start gap-0.5 text-left normal-case"
+						onclick={() => chooseRole('student')}
 					>
-						Student
+						<span class="font-bold">Student</span>
+						<span class="text-sm text-base-content/60 font-normal">
+							Join a unit and form project groups
+						</span>
 					</button>
 					<button
 						type="button"
-						role="tab"
-						class="tab {role === 'unit_coordinator' ? 'tab-active' : ''}"
-						onclick={() => (role = 'unit_coordinator')}
+						class="btn btn-outline btn-block h-auto py-4 flex-col items-start gap-0.5 text-left normal-case"
+						onclick={() => chooseRole('unit_coordinator')}
 					>
-						Teaching Staff
+						<span class="font-bold">Teaching Staff</span>
+						<span class="text-sm text-base-content/60 font-normal">
+							Create and manage units
+						</span>
 					</button>
 				</div>
-				<div class="grid grid-cols-2 gap-3">
-					<label class="flex flex-col gap-1">
-						<span class="text-sm font-medium">First Name</span>
-						<input type="text" class="input input-bordered" bind:value={firstName} required />
-					</label>
-					<label class="flex flex-col gap-1">
-						<span class="text-sm font-medium">Last Name</span>
-						<input type="text" class="input input-bordered" bind:value={lastName} required />
-					</label>
-				</div>
-				<label class="flex flex-col gap-1">
-					<span class="text-sm font-medium">Email</span>
-					<input type="email" class="input input-bordered" bind:value={email} required />
-				</label>
-				<label class="flex flex-col gap-1">
-					<span class="text-sm font-medium">Password</span>
-					<input type="password" class="input input-bordered" bind:value={password} required />
-				</label>
-				{#if error}
-					<p class="text-error text-sm">{error}</p>
-				{/if}
-				<button type="submit" class="btn btn-primary mt-1" disabled={loading}>
-					{loading ? 'Registering…' : 'Register'}
+			{:else}
+				<button
+					type="button"
+					class="link text-sm self-start mb-2"
+					onclick={() => (step = 'role')}
+				>
+					← Back
 				</button>
-			</form>
+				<h1 class="text-2xl font-extrabold text-primary mb-1">Register an Account</h1>
+				<p class="text-sm text-base-content/60 mb-4">
+					Registering as <span class="font-semibold">
+						{role === 'student' ? 'a Student' : 'Teaching Staff'}
+					</span>.
+				</p>
+				<form onsubmit={handleSubmit} class="flex flex-col gap-3">
+					<div class="grid grid-cols-2 gap-3">
+						<label class="flex flex-col gap-1">
+							<span class="text-sm font-medium">First Name</span>
+							<input type="text" class="input input-bordered" bind:value={firstName} required />
+						</label>
+						<label class="flex flex-col gap-1">
+							<span class="text-sm font-medium">Last Name</span>
+							<input type="text" class="input input-bordered" bind:value={lastName} required />
+						</label>
+					</div>
+					<label class="flex flex-col gap-1">
+						<span class="text-sm font-medium">Email</span>
+						<input type="email" class="input input-bordered" bind:value={email} required />
+					</label>
+					<label class="flex flex-col gap-1">
+						<span class="text-sm font-medium">Password</span>
+						<input type="password" class="input input-bordered" bind:value={password} required />
+					</label>
+					{#if error}<p class="text-error text-sm">{error}</p>{/if}
+					<button type="submit" class="btn btn-primary mt-1" disabled={loading}>
+						{loading ? 'Registering…' : 'Register'}
+					</button>
+				</form>
+			{/if}
 			<p class="text-sm text-base-content/60 mt-3">
 				Already have an account? <a href="/" class="link">Sign In</a>
 			</p>

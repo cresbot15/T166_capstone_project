@@ -5,11 +5,13 @@
 		slots,
 		selected,
 		readonly = false,
+		titleFor,
 		onToggle
 	}: {
 		slots: string[];
 		selected: Set<string>;
 		readonly?: boolean;
+		titleFor?: (slot: string) => string | undefined;
 		onToggle?: (slot: string) => void;
 	} = $props();
 
@@ -39,44 +41,49 @@
 	}
 </script>
 
-<div class="overflow-x-auto">
-	<div
-		class="inline-grid gap-0.5"
-		style="grid-template-columns: auto repeat({hours.length}, 1.25rem);"
-	>
-		<div></div>
-		{#each hours as hour}
-			<div class="text-[10px] font-normal text-base-content/50 text-center">
-				{hour % 3 === 0 ? formatHour(hour) : ''}
-			</div>
-		{/each}
+<div
+	class="inline-grid gap-0.5"
+	style="grid-template-columns: auto repeat({hours.length}, 1.25rem);"
+>
+	<div></div>
+	{#each hours as hour}
+		<div class="text-[10px] font-normal text-base-content/50 text-center">
+			{hour % 3 === 0 ? formatHour(hour) : ''}
+		</div>
+	{/each}
 
-		{#each days as day}
-			<div class="text-xs text-base-content/70 pr-2 whitespace-nowrap self-center">
-				{dayLabel(day)}
-			</div>
-			{#each hours as hour}
-				{@const offered = hoursByDay.get(day)?.has(hour) ?? false}
-				{@const slot = slotId(day, hour)}
-				{#if !offered}
-					<div class="w-5 h-5"></div>
-				{:else if readonly}
+	{#each days as day}
+		<div class="text-xs text-base-content/70 pr-2 whitespace-nowrap self-center">
+			{dayLabel(day)}
+		</div>
+		{#each hours as hour}
+			{@const offered = hoursByDay.get(day)?.has(hour) ?? false}
+			{@const slot = slotId(day, hour)}
+			{#if !offered}
+				<div class="w-5 h-5"></div>
+			{:else if readonly}
+				{@const tip = titleFor ? titleFor(slot) : formatSlot(slot)}
+				{#if tip}
 					<div
-						class="w-5 h-5 rounded {selected.has(slot) ? 'bg-accent' : 'bg-base-200'}"
-						title={formatSlot(slot)}
+						class="tooltip tooltip-bottom w-5 h-5 rounded {selected.has(slot)
+							? 'bg-accent'
+							: 'bg-base-200'}"
+						data-tip={tip}
 					></div>
 				{:else}
-					<button
-						type="button"
-						class="w-5 h-5 rounded transition-colors {selected.has(slot)
-							? 'bg-accent'
-							: 'bg-base-200 hover:bg-base-300'}"
-						aria-pressed={selected.has(slot)}
-						title={formatSlot(slot)}
-						onclick={() => onToggle?.(slot)}
-					></button>
+					<div class="w-5 h-5 rounded {selected.has(slot) ? 'bg-accent' : 'bg-base-200'}"></div>
 				{/if}
-			{/each}
+			{:else}
+				<button
+					type="button"
+					class="w-5 h-5 rounded transition-colors {selected.has(slot)
+						? 'bg-accent'
+						: 'bg-base-200 hover:bg-base-300'}"
+					aria-pressed={selected.has(slot)}
+					title={formatSlot(slot)}
+					onclick={() => onToggle?.(slot)}
+				></button>
+			{/if}
 		{/each}
-	</div>
+	{/each}
 </div>

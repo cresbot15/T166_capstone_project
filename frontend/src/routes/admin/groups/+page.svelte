@@ -11,9 +11,22 @@
 	let removeError = $state('');
 	let removingKey = $state<string | null>(null);
 	let typeFilter = $state<'all' | 'public' | 'private'>('all');
+	let statusFilter = $state<'all' | 'pending' | 'provisional'>('all');
+	let openSlotsOnly = $state(false);
+	let filtersOpen = $state(false);
+
+	const activeFilterCount = $derived(
+		(typeFilter !== 'all' ? 1 : 0) + (statusFilter !== 'all' ? 1 : 0) + (openSlotsOnly ? 1 : 0)
+	);
 
 	const filteredGroups = $derived(
-		groups.filter((g) => typeFilter === 'all' || g.is_public === (typeFilter === 'public'))
+		groups.filter((g) => {
+			if (typeFilter !== 'all' && g.is_public !== (typeFilter === 'public')) return false;
+			if (statusFilter !== 'all' && g.status !== statusFilter) return false;
+			if (openSlotsOnly && g.members.length >= ($activeUnit?.max_group_size ?? Infinity))
+				return false;
+			return true;
+		})
 	);
 
 	onMount(async () => {
@@ -69,14 +82,43 @@
 />
 
 <div class="max-w-3xl mx-auto px-4 py-8">
-	<label class="flex flex-col gap-1 mb-4 max-w-xs">
-		<span class="text-sm font-medium">Group type</span>
-		<select class="select select-bordered select-sm" bind:value={typeFilter}>
-			<option value="all">All</option>
-			<option value="public">Public</option>
-			<option value="private">Private</option>
-		</select>
-	</label>
+	<button
+		type="button"
+		class="btn btn-outline btn-sm mb-3"
+		onclick={() => (filtersOpen = !filtersOpen)}
+	>
+		Filters
+		{#if activeFilterCount > 0}<span class="badge badge-secondary badge-sm">{activeFilterCount}</span
+			>{/if}
+		<span class="text-xs">{filtersOpen ? '▲' : '▼'}</span>
+	</button>
+
+	{#if filtersOpen}
+		<div class="card bg-base-100 shadow-sm rounded-2xl mb-4">
+			<div class="card-body gap-3">
+				<label class="flex flex-col gap-1">
+					<span class="text-sm font-medium">Group type</span>
+					<select class="select select-bordered select-sm" bind:value={typeFilter}>
+						<option value="all">All</option>
+						<option value="public">Public</option>
+						<option value="private">Private</option>
+					</select>
+				</label>
+				<label class="flex flex-col gap-1">
+					<span class="text-sm font-medium">Status</span>
+					<select class="select select-bordered select-sm" bind:value={statusFilter}>
+						<option value="all">All</option>
+						<option value="pending">Ready</option>
+						<option value="provisional">Provisional</option>
+					</select>
+				</label>
+				<label class="flex items-center gap-2">
+					<input type="checkbox" class="checkbox checkbox-sm" bind:checked={openSlotsOnly} />
+					<span class="text-sm">Has open spots</span>
+				</label>
+			</div>
+		</div>
+	{/if}
 
 	{#if loadError}<p class="text-error text-sm mb-2">{loadError}</p>{/if}
 	{#if removeError}<p class="text-error text-sm mb-2">{removeError}</p>{/if}
@@ -86,10 +128,10 @@
 			<div class="card bg-base-100 shadow-sm rounded-2xl">
 				<div class="card-body">
 					<div class="flex items-center justify-between gap-2 mb-2">
-						<div>
+						<a href={`/admin/groups/${group.id}`} class="hover:underline">
 							<p class="font-bold">Group {group.id}</p>
 							<p class="text-xs text-base-content/60 font-mono">{group.preference_code}</p>
-						</div>
+						</a>
 						<div class="flex items-center gap-2">
 							<span class="badge badge-ghost">{group.is_public ? 'Public' : 'Private'}</span>
 							<span class="badge {group.status === 'pending' ? 'badge-success' : 'badge-warning'}">
@@ -127,6 +169,8 @@
 		{/each}
 		{#if groups.length === 0}
 			<p class="text-sm text-base-content/60">No groups in this unit yet.</p>
+		{:else if filteredGroups.length === 0}
+			<p class="text-sm text-base-content/60">No groups match the selected filters.</p>
 		{/if}
 	</div>
 </div>
