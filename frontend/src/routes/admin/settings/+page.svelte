@@ -183,6 +183,19 @@
 			</div>
 		</div>
 
+		<div class="card bg-base-100 shadow-sm rounded-2xl mt-4">
+			<div class="card-body">
+				<h2 class="font-bold mb-1">Transfer Ownership</h2>
+				<p class="text-sm text-base-content/60 mb-3">
+					Make another administrator the owner of this unit. You will be demoted to
+					administrator once the transfer completes.
+				</p>
+				<a href="/admin/settings/transfer-owner" class="btn btn-outline btn-sm self-start">
+					Transfer Ownership
+				</a>
+			</div>
+		</div>
+
 		<div class="sticky bottom-4 mt-6 flex justify-end gap-2">
 			<button
 				type="button"

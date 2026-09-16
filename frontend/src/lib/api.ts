@@ -151,6 +151,8 @@ export const api = {
 	getUnitMembers: (unitId: number) => req<UnitMemberResponse[]>('GET', `/units/${unitId}/members`),
 	setMemberRole: (unitId: number, userId: number, role: 'administrator' | 'student') =>
 		req<UnitMembershipResponse>('PATCH', `/units/${unitId}/members/${userId}`, { role }),
+	transferOwnership: (unitId: number, userId: number) =>
+		req<UnitMembershipResponse>('PUT', `/units/${unitId}/owner`, { user_id: userId }),
 	getTimeSlots: () => req<string[]>('GET', '/time-slots'),
 	exportUnitStudents: async (unitId: number): Promise<void> => {
 		const res = await fetch(`${BASE}/units/${unitId}/export`, { headers: authHeaders() });
